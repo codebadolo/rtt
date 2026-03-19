@@ -22,9 +22,6 @@ export const usersApi = {
   getOrders: (id) =>
     client.get(`/utilisateurs/${id}/commandes/`).then((r) => r.data),
 
-  getKyc: (id) =>
-    client.get(`/utilisateurs/${id}/kyc/`).then((r) => r.data),
-
   getSalles: (id) =>
     client.get(`/utilisateurs/${id}/salles/`).then((r) => r.data),
 

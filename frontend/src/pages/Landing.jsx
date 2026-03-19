@@ -131,7 +131,7 @@ export default function Landing() {
               {[
                 'Livraison en salle de classe',
                 'Paiement mobile money',
-                'Vérification étudiante',
+                'Inscription rapide et gratuite',
               ].map((item) => (
                 <div key={item} className="flex items-center gap-2 text-sm text-gray-500">
                   <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -183,7 +183,7 @@ export default function Landing() {
                 color: 'bg-blue-100 text-blue-500',
                 step: '01',
                 title: 'Créez votre compte',
-                desc: 'Inscrivez-vous avec votre email étudiant et vérifiez votre identité via KYC.',
+                desc: 'Inscrivez-vous avec votre email étudiant en quelques secondes.',
               },
               {
                 icon: ShoppingBag,

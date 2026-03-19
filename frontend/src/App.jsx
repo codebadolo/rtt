@@ -19,7 +19,6 @@ import StudentProducts from './pages/student/Products'
 import StudentCart from './pages/student/Cart'
 import StudentOrders from './pages/student/Orders'
 import StudentOrderDetail from './pages/student/OrderDetail'
-import StudentKYC from './pages/student/KYC'
 import StudentProfile from './pages/student/Profile'
 import StudentComplaints from './pages/student/Complaints'
 
@@ -30,7 +29,6 @@ import AdminUserDetail from './pages/admin/UserDetail'
 import AdminProducts from './pages/admin/Products'
 import AdminProductDetail from './pages/admin/ProductDetail'
 import AdminSectors from './pages/admin/Sectors'
-import AdminKYCManagement from './pages/admin/KYCManagement'
 import AdminOrders from './pages/admin/Orders'
 import AdminOrderDetail from './pages/admin/AdminOrderDetail'
 import AdminPayments from './pages/admin/Payments'
@@ -109,7 +107,6 @@ export default function App() {
               <Route path="/panier" element={<StudentCart />} />
               <Route path="/commandes" element={<StudentOrders />} />
               <Route path="/commandes/:id" element={<StudentOrderDetail />} />
-              <Route path="/kyc" element={<StudentKYC />} />
               <Route path="/plaintes" element={<StudentComplaints />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
@@ -129,7 +126,6 @@ export default function App() {
               <Route path="/produits" element={<AdminProducts />} />
               <Route path="/produits/:id" element={<AdminProductDetail />} />
               <Route path="/secteurs" element={<AdminSectors />} />
-              <Route path="/kyc" element={<AdminKYCManagement />} />
               <Route path="/commandes" element={<AdminOrders />} />
               <Route path="/commandes/:id" element={<AdminOrderDetail />} />
               <Route path="/paiements" element={<AdminPayments />} />

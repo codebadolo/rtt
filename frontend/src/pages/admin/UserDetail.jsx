@@ -3,9 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Mail, Phone, GraduationCap, Calendar,
-  ShoppingBag, CheckCircle, XCircle, Clock, ToggleLeft, ToggleRight,
-  ClipboardList, FileCheck, User, CreditCard, MapPin, DoorOpen,
-  KeyRound, Truck, Package,
+  ShoppingBag, ToggleLeft, ToggleRight,
+  ClipboardList, User, CreditCard, MapPin, DoorOpen,
+  KeyRound,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
@@ -28,13 +28,6 @@ const ROLE_LABELS = {
   ETUDIANT: 'Étudiant',
   CHEF_SECTEUR: 'Chef de Secteur',
   LIVREUR: 'Livreur',
-}
-
-const KYC_CONFIG = {
-  VALIDE:     { cls: 'bg-green-100 text-green-700',  icon: CheckCircle, txt: 'Validé' },
-  EN_ATTENTE: { cls: 'bg-amber-100 text-amber-700',  icon: Clock,       txt: 'En attente' },
-  REJETE:     { cls: 'bg-red-100 text-red-700',      icon: XCircle,     txt: 'Rejeté' },
-  NON_SOUMIS: { cls: 'bg-gray-100 text-gray-500',   icon: FileCheck,   txt: 'Non soumis' },
 }
 
 const ORDER_STATUT_CONFIG = {
@@ -117,10 +110,8 @@ function SectionCard({ title, icon: Icon, children }) {
 
 /* ── Role-specific panels ── */
 
-function EtudiantPanel({ user, orders, ordersLoading, kycData }) {
+function EtudiantPanel({ user, orders, ordersLoading }) {
   const [tab, setTab] = useState('commandes')
-  const kyc = KYC_CONFIG[user.statut_kyc] ?? KYC_CONFIG.NON_SOUMIS
-  const KycIcon = kyc.icon
 
   const livrees      = orders.filter((o) => o.statut === 'DISTRIBUEE' || o.statut === 'LIVREE').length
   const rejetees     = orders.filter((o) => o.statut === 'REJETEE').length
@@ -145,25 +136,15 @@ function EtudiantPanel({ user, orders, ordersLoading, kycData }) {
 
   return (
     <>
-      {/* KYC badge + stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {user.matricule && (
         <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <KycIcon className="h-5 w-5 text-gray-400" />
+          <GraduationCap className="h-5 w-5 text-gray-400" />
           <div>
-            <p className="text-xs text-gray-400 mb-1">Statut KYC</p>
-            <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${kyc.cls}`}>{kyc.txt}</span>
+            <p className="text-xs text-gray-400">Matricule</p>
+            <p className="font-mono font-semibold text-sm text-gray-800">{user.matricule}</p>
           </div>
         </div>
-        {user.matricule && (
-          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-            <GraduationCap className="h-5 w-5 text-gray-400" />
-            <div>
-              <p className="text-xs text-gray-400">Matricule</p>
-              <p className="font-mono font-semibold text-sm text-gray-800">{user.matricule}</p>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Activity stats */}
       <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
@@ -183,9 +164,6 @@ function EtudiantPanel({ user, orders, ordersLoading, kycData }) {
         <Tab active={tab === 'paiements'} onClick={() => setTab('paiements')}>
           <CreditCard className="h-4 w-4" /> Paiements
         </Tab>
-        <Tab active={tab === 'kyc'} onClick={() => setTab('kyc')}>
-          <FileCheck className="h-4 w-4" /> KYC
-        </Tab>
       </div>
 
       {tab === 'commandes' && (
@@ -195,33 +173,6 @@ function EtudiantPanel({ user, orders, ordersLoading, kycData }) {
       {tab === 'paiements' && (
         <DataTable columns={paymentColumns} data={orders} isLoading={ordersLoading}
           emptyIcon={<CreditCard className="h-12 w-12" />} emptyText="Aucun paiement" searchable={false} total={orders.length} />
-      )}
-      {tab === 'kyc' && (
-        <SectionCard title="Dossier KYC" icon={FileCheck}>
-          {!kycData || kycData.message ? (
-            <div className="text-center py-10">
-              <FileCheck className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">Aucun document KYC soumis</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <span className={`inline-flex items-center gap-2 text-sm font-semibold px-3 py-1.5 rounded-xl ${kyc.cls}`}>
-                <KycIcon className="h-4 w-4" /> {kyc.txt}
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {kycData.numero_carte && <div><p className="text-xs text-gray-400">N° de carte</p><p className="font-mono font-semibold text-gray-800">{kycData.numero_carte}</p></div>}
-                {kycData.date_soumission && <div><p className="text-xs text-gray-400">Soumis le</p><p className="text-sm text-gray-800">{new Date(kycData.date_soumission).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</p></div>}
-                {kycData.date_expiration && <div><p className="text-xs text-gray-400">Expiration carte</p><p className="text-sm text-gray-800">{new Date(kycData.date_expiration).toLocaleDateString('fr-FR')}</p></div>}
-              </div>
-              {kycData.motif_rejet && (
-                <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-red-600 mb-1">Motif de rejet</p>
-                  <p className="text-sm text-red-700">{kycData.motif_rejet}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </SectionCard>
       )}
     </>
   )
@@ -461,12 +412,6 @@ export default function AdminUserDetail() {
   })
   const orders = Array.isArray(ordersData) ? ordersData : []
 
-  const { data: kycData } = useQuery({
-    queryKey: ['user-kyc', id],
-    queryFn: () => usersApi.getKyc(id),
-    enabled: !!id && user?.role === 'ETUDIANT',
-  })
-
   const { data: allSectors } = useQuery({
     queryKey: ['sectors'],
     queryFn: () => import('../../api/sectors').then((m) => m.sectorsApi.list()),
@@ -496,8 +441,6 @@ export default function AdminUserDetail() {
       </div>
     </DashboardLayout>
   )
-
-  const kyc = KYC_CONFIG[user.statut_kyc] ?? KYC_CONFIG.NON_SOUMIS
 
   return (
     <DashboardLayout>
@@ -564,7 +507,7 @@ export default function AdminUserDetail() {
 
         {/* Role-specific content */}
         {user.role === 'ETUDIANT' && (
-          <EtudiantPanel user={user} orders={orders} ordersLoading={ordersLoading} kycData={kycData} />
+          <EtudiantPanel user={user} orders={orders} ordersLoading={ordersLoading} />
         )}
         {user.role === 'CHEF_SECTEUR' && (
           <ChefSecteurPanel userId={id} allSectors={Array.isArray(allSectors) ? allSectors : allSectors?.results ?? []} />

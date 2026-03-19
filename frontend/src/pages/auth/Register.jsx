@@ -39,7 +39,6 @@ export default function Register() {
         email: res.email,
         nom_complet: res.nom_complet,
         role: res.role,
-        statut_kyc: res.statut_kyc,
       })
       toast.success('Compte créé avec succès ! Bienvenue 🎉')
       navigate(ROLE_REDIRECTS[res.role] ?? '/')
@@ -187,11 +186,6 @@ export default function Register() {
                   </button>
                 </div>
                 {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
-              </div>
-
-              {/* Info banner */}
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
-                📋 Après inscription, vous devrez soumettre votre <strong>numéro de carte étudiant</strong> pour vérification KYC avant de pouvoir commander.
               </div>
 
               <button

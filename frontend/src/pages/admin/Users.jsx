@@ -204,20 +204,6 @@ export default function AdminUsers() {
       render: (v) => <RolePill role={v} />,
     },
     {
-      key: 'statut_kyc',
-      label: 'KYC',
-      render: (v) => {
-        const MAP = {
-          VALIDE:     { cls: 'bg-green-100 text-green-700',  txt: '✓ Validé' },
-          EN_ATTENTE: { cls: 'bg-amber-100 text-amber-700',  txt: '⏳ En attente' },
-          REJETE:     { cls: 'bg-red-100 text-red-700',      txt: '✗ Rejeté' },
-          NON_SOUMIS: { cls: 'bg-gray-100 text-gray-500',    txt: '— Non soumis' },
-        }
-        const c = MAP[v] ?? MAP.NON_SOUMIS
-        return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${c.cls}`}>{c.txt}</span>
-      },
-    },
-    {
       key: 'est_actif',
       label: 'Statut',
       render: (v) => (

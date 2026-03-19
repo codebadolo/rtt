@@ -12,14 +12,12 @@ const useAuthStore = create((set, get) => ({
 
   login: async (credentials) => {
     const data = await authApi.login(credentials)
-    // Backend returns { token, user_id, email, nom_complet, role, statut_kyc }
     setStoredToken(data.token)
     const user = {
       id: data.user_id,
       email: data.email,
       nom_complet: data.nom_complet,
       role: data.role,
-      statut_kyc: data.statut_kyc,
     }
     set({ user, isAuthenticated: true, isLoading: false })
     return user

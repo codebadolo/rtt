@@ -6,10 +6,6 @@ const STATUS_COLORS = {
   PRETE:      'bg-purple-100 text-purple-700',
   DISTRIBUEE: 'bg-green-100 text-green-700',
   ANNULEE:    'bg-gray-100 text-gray-500 line-through',
-  // KYC statuses
-  EN_COURS:   'bg-yellow-100 text-yellow-700',
-  APPROUVE:   'bg-green-100 text-green-700',
-  REJETE:     'bg-red-100 text-red-700',
   // User status
   ACTIF:      'bg-green-100 text-green-700',
   INACTIF:    'bg-gray-100 text-gray-500',
@@ -26,8 +22,6 @@ const STATUS_LABELS = {
   PRETE:      'Prête',
   DISTRIBUEE: 'Distribuée',
   ANNULEE:    'Annulée',
-  EN_COURS:   'En cours',
-  APPROUVE:   'Approuvé',
   REJETE:     'Rejeté',
   ACTIF:      'Actif',
   INACTIF:    'Inactif',

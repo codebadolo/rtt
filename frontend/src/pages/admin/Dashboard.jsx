@@ -1,13 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  Users, ShoppingBag, ClipboardList, FileCheck,
-  TrendingUp, ChevronRight, Package, UserCheck,
+  Users, ShoppingBag, ClipboardList,
+  TrendingUp, ChevronRight, Package,
 } from 'lucide-react'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { adminApi } from '../../api/admin'
-import { kycApi } from '../../api/kyc'
 import { usersApi } from '../../api/users'
 
 function StatCard({ icon: Icon, label, value, sub, color, to }) {
@@ -26,35 +25,11 @@ function StatCard({ icon: Icon, label, value, sub, color, to }) {
   return to ? <Link to={to}>{inner}</Link> : inner
 }
 
-function MiniBar({ label, value, max, color }) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-gray-500 w-24 truncate shrink-0">{label}</span>
-      <div className="flex-1 bg-gray-100 rounded-full h-2">
-        <div className={`h-2 rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs font-semibold text-gray-700 w-6 text-right shrink-0">{value}</span>
-    </div>
-  )
-}
-
-const KYC_STATUS_LABELS = {
-  EN_ATTENTE: 'En attente',
-  VALIDE: 'Validés',
-  REJETE: 'Rejetés',
-  NON_SOUMIS: 'Non soumis',
-}
 
 export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => adminApi.stats(),
-  })
-
-  const { data: kycStats, isLoading: kycLoading } = useQuery({
-    queryKey: ['kyc-stats'],
-    queryFn: () => kycApi.stats(),
   })
 
   const { data: usersRaw } = useQuery({
@@ -65,10 +40,6 @@ export default function AdminDashboard() {
   const userCount = Array.isArray(usersRaw)
     ? usersRaw.length
     : usersRaw?.count ?? usersRaw?.results?.length ?? null
-
-  const kycTotal = kycStats
-    ? (kycStats.en_attente ?? 0) + (kycStats.valides ?? 0) + (kycStats.rejetes ?? 0)
-    : 0
 
   const recentOrders = stats?.commandes_recentes ?? []
 
@@ -110,12 +81,10 @@ export default function AdminDashboard() {
                 color="bg-purple-500"
               />
               <StatCard
-                icon={FileCheck}
-                label="KYC en attente"
-                value={kycStats?.en_attente ?? 0}
-                sub={`Total étudiants: ${kycStats?.total_etudiants ?? 0}`}
+                icon={TrendingUp}
+                label="CA du mois"
+                value={stats?.ca_mois ? `${parseFloat(stats.ca_mois).toLocaleString('fr-FR')} F` : null}
                 color="bg-amber-500"
-                to="/admin/kyc"
               />
             </div>
 
@@ -137,35 +106,8 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* KYC breakdown */}
-              <div className="bg-white border border-gray-100 rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="font-semibold text-gray-800">Statuts KYC</h2>
-                  <Link to="/admin/kyc" className="text-xs text-orange-500 font-medium hover:text-orange-600 flex items-center gap-1">
-                    Gérer <ChevronRight className="h-3 w-3" />
-                  </Link>
-                </div>
-                {kycLoading ? (
-                  <LoadingSpinner />
-                ) : kycStats ? (
-                  <div className="space-y-3">
-                    <MiniBar label="En attente" value={kycStats.en_attente ?? 0} max={kycStats.total_etudiants ?? 1} color="bg-amber-400" />
-                    <MiniBar label="Validés" value={kycStats.valides ?? 0} max={kycStats.total_etudiants ?? 1} color="bg-green-400" />
-                    <MiniBar label="Rejetés" value={kycStats.rejetes ?? 0} max={kycStats.total_etudiants ?? 1} color="bg-red-400" />
-                    <MiniBar label="Non soumis" value={kycStats.non_soumis ?? 0} max={kycStats.total_etudiants ?? 1} color="bg-gray-300" />
-                    <div className="pt-2 border-t border-gray-100 flex justify-between text-xs text-gray-500">
-                      <span>Total étudiants</span>
-                      <span className="font-semibold text-gray-700">{kycStats.total_etudiants}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-sm text-center py-6">Aucune donnée KYC</p>
-                )}
-              </div>
-
-              {/* Popular products */}
-              <div className="bg-white border border-gray-100 rounded-2xl p-5">
+            {/* Popular products */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="font-semibold text-gray-800">Produits populaires</h2>
                   <Link to="/admin/produits" className="text-xs text-orange-500 font-medium hover:text-orange-600 flex items-center gap-1">
@@ -195,7 +137,6 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
-            </div>
 
             {/* Recent orders */}
             <div className="bg-white border border-gray-100 rounded-2xl p-5">
