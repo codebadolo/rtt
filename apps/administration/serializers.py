@@ -357,8 +357,7 @@ class ConfigurationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Configuration
         fields = [
-            'frais_livraison_actif', 'frais_livraison_montant', 'frais_livraison_type',
-            'frais_orange', 'frais_moov', 'frais_sank',
+            'taux_service',
             'date_modification',
         ]
         read_only_fields = ['date_modification']

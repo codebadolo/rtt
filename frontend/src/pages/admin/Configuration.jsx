@@ -1,23 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Settings, Truck, CreditCard, Save } from 'lucide-react'
+import { Settings, Percent, Save } from 'lucide-react'
 import { useEffect } from 'react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { configApi } from '../../api/admin'
-
-function Section({ icon: Icon, title, color, children }) {
-  return (
-    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-      <div className={`flex items-center gap-3 px-6 py-4 border-b border-gray-100 ${color}`}>
-        <Icon className="h-5 w-5" />
-        <h2 className="font-semibold text-base">{title}</h2>
-      </div>
-      <div className="p-6 space-y-4">{children}</div>
-    </div>
-  )
-}
 
 export default function AdminConfiguration() {
   const queryClient = useQueryClient()
@@ -33,18 +21,11 @@ export default function AdminConfiguration() {
     watch,
     reset,
     formState: { errors, isDirty },
-  } = useForm()
+  } = useForm({ defaultValues: { taux_service: 10 } })
 
   useEffect(() => {
     if (config) {
-      reset({
-        frais_livraison_actif: config.frais_livraison_actif,
-        frais_livraison_montant: config.frais_livraison_montant,
-        frais_livraison_type: config.frais_livraison_type,
-        frais_orange: config.frais_orange,
-        frais_moov: config.frais_moov,
-        frais_sank: config.frais_sank,
-      })
+      reset({ taux_service: config.taux_service })
     }
   }, [config, reset])
 
@@ -57,8 +38,9 @@ export default function AdminConfiguration() {
     onError: () => toast.error('Erreur lors de la sauvegarde'),
   })
 
-  const livraisonActif = watch('frais_livraison_actif')
-  const livraisonType = watch('frais_livraison_type')
+  const taux = parseFloat(watch('taux_service') || 0)
+  const exemple = 1000
+  const fraisService = Math.round(exemple * taux / 100)
 
   if (isLoading) {
     return (
@@ -82,7 +64,7 @@ export default function AdminConfiguration() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Configuration tarifaire</h1>
               <p className="text-gray-500 mt-1">
-                Définissez les frais de livraison et de paiement
+                Définissez le taux de frais de service appliqué aux commandes
               </p>
             </div>
             <button
@@ -95,136 +77,69 @@ export default function AdminConfiguration() {
             </button>
           </div>
 
-          {/* Frais de livraison */}
-          <Section icon={Truck} title="Frais de livraison" color="text-orange-600">
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="livraison_actif"
-                className="w-4 h-4 accent-primary-500"
-                {...register('frais_livraison_actif')}
-              />
-              <label htmlFor="livraison_actif" className="text-sm text-gray-700 font-medium">
-                Activer les frais de livraison
-              </label>
+          {/* Frais de service */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 text-primary-600">
+              <Percent className="h-5 w-5" />
+              <h2 className="font-semibold text-base">Frais de service</h2>
             </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">
+                Ce pourcentage est appliqué sur le sous-total produits de chaque commande.
+                Il couvre les frais de livraison et de transaction mobile. Les clients voient
+                uniquement <strong>«&nbsp;Frais de service&nbsp;»</strong>.
+              </p>
 
-            {livraisonActif && (
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="label">Type de frais</label>
-                  <select className="input" {...register('frais_livraison_type')}>
-                    <option value="FIXE">Montant fixe (FCFA)</option>
-                    <option value="POURCENTAGE">Pourcentage (%)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">
-                    {livraisonType === 'FIXE' ? 'Montant (FCFA)' : 'Taux (%)'}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step={livraisonType === 'FIXE' ? '1' : '0.01'}
-                    className={`input ${errors.frais_livraison_montant ? 'border-red-400' : ''}`}
-                    placeholder={livraisonType === 'FIXE' ? 'ex: 100' : 'ex: 5'}
-                    {...register('frais_livraison_montant', { required: 'Requis', min: 0 })}
-                  />
-                  {errors.frais_livraison_montant && (
-                    <p className="form-error">{errors.frais_livraison_montant.message}</p>
+              <div className="flex items-center gap-4">
+                <div className="flex-1 max-w-xs">
+                  <label className="label">Taux de frais de service</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      step="0.5"
+                      className={`input w-28 ${errors.taux_service ? 'border-red-400' : ''}`}
+                      placeholder="10"
+                      {...register('taux_service', {
+                        required: 'Requis',
+                        min: { value: 0, message: 'Minimum 0%' },
+                        max: { value: 50, message: 'Maximum 50%' },
+                      })}
+                    />
+                    <span className="text-sm text-gray-500 font-medium">%</span>
+                  </div>
+                  {errors.taux_service && (
+                    <p className="form-error">{errors.taux_service.message}</p>
                   )}
                 </div>
               </div>
-            )}
-
-            <p className="text-xs text-gray-400">
-              {livraisonActif
-                ? livraisonType === 'FIXE'
-                  ? `Un montant fixe sera ajouté à chaque commande.`
-                  : `Un pourcentage du sous-total produits sera appliqué.`
-                : 'Aucun frais de livraison ne sera appliqué.'}
-            </p>
-          </Section>
-
-          {/* Frais de paiement */}
-          <Section icon={CreditCard} title="Frais de paiement par opérateur" color="text-blue-600">
-            <p className="text-sm text-gray-500 -mt-2">
-              Ces frais sont calculés sur (sous-total + livraison) selon l'opérateur choisi.
-            </p>
-
-            {[
-              { key: 'frais_orange', label: 'Orange Money', emoji: '🟠' },
-              { key: 'frais_moov',   label: 'Moov Money',   emoji: '🟢' },
-              { key: 'frais_sank',   label: 'Sank Money',   emoji: '🔵' },
-            ].map(({ key, label, emoji }) => (
-              <div key={key} className="flex items-center gap-4">
-                <div className="flex items-center gap-2 w-36 flex-shrink-0">
-                  <span>{emoji}</span>
-                  <span className="text-sm font-medium text-gray-700">{label}</span>
-                </div>
-                <div className="flex items-center gap-2 flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    className="input w-28"
-                    placeholder="0"
-                    {...register(key, { min: 0, max: 100 })}
-                  />
-                  <span className="text-sm text-gray-500 font-medium">%</span>
-                </div>
-              </div>
-            ))}
-          </Section>
+            </div>
+          </div>
 
           {/* Preview */}
           <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
               <Settings className="h-4 w-4 text-orange-500" />
-              <p className="text-sm font-semibold text-orange-700">Exemple de calcul</p>
+              <p className="text-sm font-semibold text-orange-700">Exemple de calcul pour 1 000 FCFA de produits</p>
             </div>
-            <ExampleCalc config={watch()} />
+            <div className="text-sm space-y-1">
+              <div className="flex justify-between text-gray-600">
+                <span>Sous-total produits</span>
+                <span>{exemple.toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Frais de service ({taux}%)</span>
+                <span>+ {fraisService.toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-orange-200">
+                <span>Total facturé au client</span>
+                <span className="text-primary-600">{(exemple + fraisService).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+            </div>
           </div>
         </div>
       </form>
     </DashboardLayout>
-  )
-}
-
-function ExampleCalc({ config }) {
-  const exemple = 1000
-  let fraisLivraison = 0
-  if (config.frais_livraison_actif && parseFloat(config.frais_livraison_montant) > 0) {
-    if (config.frais_livraison_type === 'FIXE') {
-      fraisLivraison = parseFloat(config.frais_livraison_montant)
-    } else {
-      fraisLivraison = Math.round(exemple * parseFloat(config.frais_livraison_montant) / 100)
-    }
-  }
-  const base = exemple + fraisLivraison
-  const tauxOrange = parseFloat(config.frais_orange || 0)
-  const fraisPaiement = Math.round(base * tauxOrange / 100)
-  const total = exemple + fraisLivraison + fraisPaiement
-
-  return (
-    <div className="text-sm space-y-1">
-      <div className="flex justify-between text-gray-600">
-        <span>Sous-total produits</span>
-        <span>{exemple.toLocaleString('fr-FR')} FCFA</span>
-      </div>
-      <div className="flex justify-between text-gray-600">
-        <span>Frais de livraison</span>
-        <span>+ {fraisLivraison.toLocaleString('fr-FR')} FCFA</span>
-      </div>
-      <div className="flex justify-between text-gray-600">
-        <span>Frais Orange Money ({tauxOrange}%)</span>
-        <span>+ {fraisPaiement.toLocaleString('fr-FR')} FCFA</span>
-      </div>
-      <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-orange-200">
-        <span>Total facturé</span>
-        <span className="text-primary-600">{total.toLocaleString('fr-FR')} FCFA</span>
-      </div>
-    </div>
   )
 }

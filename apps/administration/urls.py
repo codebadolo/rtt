@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     SecteurViewSet, SalleViewSet, ProduitViewSet,
     VarianteViewSet, OptionViewSet, HoraireCommandeViewSet,
-    AdminDashboardViewSet, configuration_view
+    AdminDashboardViewSet, configuration_view, comptabilite_view
 )
 
 router = DefaultRouter()
@@ -19,4 +19,5 @@ router.register(r'admin/dashboard', AdminDashboardViewSet, basename='admin-dashb
 urlpatterns = [
     path('', include(router.urls)),
     path('configuration/', configuration_view, name='configuration'),
+    path('admin/comptabilite/', comptabilite_view, name='comptabilite'),
 ]

@@ -1,0 +1,29 @@
+# ─── Dockerfile production ────────────────────────────────────────────────────
+# Utilisé par docker-compose.prod.yml
+# Ce même image sert pour Gunicorn (HTTP) et Daphne (WebSockets)
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV DJANGO_SETTINGS_MODULE=config.settings.production
+
+WORKDIR /app
+
+# Dépendances système
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dépendances Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Code source
+COPY . .
+
+# collectstatic n'a pas besoin de la vraie SECRET_KEY ni de la DB
+RUN DJANGO_SECRET_KEY=build-placeholder-key \
+    python manage.py collectstatic --noinput
+
+EXPOSE 8000 8001

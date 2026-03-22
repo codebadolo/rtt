@@ -90,13 +90,9 @@ class Commande(models.Model):
         editable=False
     )
 
-    # Détail des frais (calculés côté serveur)
-    frais_livraison = models.DecimalField(
-        'Frais de livraison',
-        max_digits=10, decimal_places=2, default=0, editable=False
-    )
-    frais_paiement = models.DecimalField(
-        'Frais de paiement',
+    # Frais de service (10% du total_ht — calculé côté serveur)
+    frais_service = models.DecimalField(
+        'Frais de service',
         max_digits=10, decimal_places=2, default=0, editable=False
     )
 
@@ -213,22 +209,18 @@ class Commande(models.Model):
     
     def mettre_a_jour_total(self):
         """
-        Recalcule total_ht, frais_livraison, frais_paiement et total_ttc
+        Recalcule total_ht, frais_service et total_ttc
         depuis les lignes de commande et la configuration tarifaire active.
         """
-        from decimal import Decimal
         from apps.administration.models import Configuration
 
         nouveau_total_ht = self.calculer_total()
         config = Configuration.get_active()
-        frais_livraison, frais_paiement, total_ttc = config.calculer_frais(
-            nouveau_total_ht, self.methode_paiement
-        )
+        frais_service, total_ttc = config.calculer_frais(nouveau_total_ht)
         self.total_ht = nouveau_total_ht
-        self.frais_livraison = frais_livraison
-        self.frais_paiement = frais_paiement
+        self.frais_service = frais_service
         self.total_ttc = total_ttc
-        self.save(update_fields=['total_ht', 'frais_livraison', 'frais_paiement', 'total_ttc'])
+        self.save(update_fields=['total_ht', 'frais_service', 'total_ttc'])
         return total_ttc
     
     def valider(self, validateurs, reference_paiement=None):
@@ -241,8 +233,7 @@ class Commande(models.Model):
         if reference_paiement:
             self.reference_paiement = reference_paiement
         self.save(update_fields=['statut', 'valide_par', 'date_validation', 'reference_paiement'])
-        
-        # Créer une entrée dans l'historique
+
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=StatutCommande.EN_ATTENTE,
@@ -250,6 +241,9 @@ class Commande(models.Model):
             modifie_par=validateurs,
             commentaire="Paiement validé"
         )
+
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
     
     def rejeter(self, validateurs, motif):
         """
@@ -260,8 +254,7 @@ class Commande(models.Model):
         self.date_validation = timezone.now()
         self.motif_rejet = motif
         self.save(update_fields=['statut', 'valide_par', 'date_validation', 'motif_rejet'])
-        
-        # Créer une entrée dans l'historique
+
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=StatutCommande.EN_ATTENTE,
@@ -269,6 +262,9 @@ class Commande(models.Model):
             modifie_par=validateurs,
             commentaire=f"Rejeté: {motif}"
         )
+
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
     
     def marquer_prete(self, livreur=None):
         """
@@ -276,7 +272,7 @@ class Commande(models.Model):
         """
         self.statut = StatutCommande.PRETE
         self.save(update_fields=['statut'])
-        
+
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=StatutCommande.VALIDEE,
@@ -284,6 +280,9 @@ class Commande(models.Model):
             modifie_par=livreur,
             commentaire="Commande prête pour distribution"
         )
+
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
     
     def distribuer(self, livreur):
         """
@@ -293,7 +292,7 @@ class Commande(models.Model):
         self.distribue_par = livreur
         self.date_distribution = timezone.now()
         self.save(update_fields=['statut', 'distribue_par', 'date_distribution'])
-        
+
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=StatutCommande.PRETE,
@@ -301,6 +300,9 @@ class Commande(models.Model):
             modifie_par=livreur,
             commentaire="Commande distribuée"
         )
+
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
     
     def annuler(self, utilisateur, motif):
         """

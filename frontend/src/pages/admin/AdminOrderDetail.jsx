@@ -383,12 +383,8 @@ export default function AdminOrderDetail() {
                       <span>{Number(order.total_ht || 0).toLocaleString('fr-FR')} FCFA</span>
                     </div>
                     <div className="flex justify-between text-sm text-gray-400">
-                      <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> Frais livraison</span>
-                      <span>{Number(order.frais_livraison) > 0 ? `+ ${Number(order.frais_livraison).toLocaleString('fr-FR')} FCFA` : 'Gratuit'}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-400">
-                      <span className="flex items-center gap-1"><CreditCard className="h-3 w-3" /> Frais paiement</span>
-                      <span>{Number(order.frais_paiement) > 0 ? `+ ${Number(order.frais_paiement).toLocaleString('fr-FR')} FCFA` : 'Inclus'}</span>
+                      <span className="flex items-center gap-1"><CreditCard className="h-3 w-3" /> Frais de service</span>
+                      <span>+ {Number(order.frais_service || 0).toLocaleString('fr-FR')} FCFA</span>
                     </div>
                     <div className="flex justify-between font-bold text-gray-900 pt-1">
                       <span>Total TTC</span>

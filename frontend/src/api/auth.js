@@ -4,8 +4,14 @@ export const authApi = {
   register: (data) =>
     client.post('/auth/inscription/', data).then((r) => r.data),
 
+  registerWithGoogle: (data) =>
+    client.post('/auth/inscription-google/', data).then((r) => r.data),
+
   login: (data) =>
     client.post('/auth/connexion/', data).then((r) => r.data),
+
+  loginWithGoogle: (token) =>
+    client.post('/auth/connexion-google/', { token }).then((r) => r.data),
 
   logout: () =>
     client.post('/auth/deconnexion/').then((r) => r.data),

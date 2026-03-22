@@ -278,9 +278,10 @@ class DemandeReinitialisationSerializer(serializers.Serializer):
         return user
     
     def save(self):
+        from .utils import envoyer_email_reset_mot_de_passe
         user = self.validated_data['email']
         token = user.generer_reset_token()
-        # Ici, envoyer l'email avec le token
+        envoyer_email_reset_mot_de_passe(user, token)
         logger.info(f"Token de réinitialisation généré pour: {user.email}")
         return token
 
@@ -295,10 +296,11 @@ class ReinitialisationMotDePasseSerializer(serializers.Serializer):
         min_length=8,
         write_only=True
     )
-    confirmation_mot_de_passe = serializers.CharField(required=True, write_only=True)
-    
+    confirmation_mot_de_passe = serializers.CharField(required=False, write_only=True)
+
     def validate(self, data):
-        if data['nouveau_mot_de_passe'] != data['confirmation_mot_de_passe']:
+        confirm = data.get('confirmation_mot_de_passe')
+        if confirm and data['nouveau_mot_de_passe'] != confirm:
             raise serializers.ValidationError("Les mots de passe ne correspondent pas")
         return data
     

@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -17,11 +18,14 @@ import {
   Utensils,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import useAuthStore from '../stores/authStore'
 import useCartStore from '../stores/cartStore'
+import useNotificationsStore from '../stores/notificationsStore'
+import useWebSocket from '../hooks/useWebSocket'
+import NotificationBell from '../components/NotificationBell'
 
 const navByRole = {
   ETUDIANT: [
@@ -39,6 +43,7 @@ const navByRole = {
     { to: '/admin/secteurs', label: 'Secteurs & Salles', icon: MapPin },
     { to: '/admin/commandes', label: 'Commandes', icon: ClipboardList },
     { to: '/admin/paiements', label: 'Paiements', icon: CreditCard },
+    { to: '/admin/comptabilite', label: 'Comptabilité', icon: BarChart3 },
     { to: '/admin/configuration', label: 'Configuration', icon: Settings },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },
   ],
@@ -60,6 +65,11 @@ const roleLabels = {
   LIVREUR: 'Livreur',
 }
 
+// URL WebSocket : en dev Vite proxy /ws → localhost:8001, en prod via Nginx
+const WS_URL = typeof window !== 'undefined'
+  ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws/commandes/`
+  : null
+
 export default function DashboardLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -67,6 +77,24 @@ export default function DashboardLayout({ children }) {
   const cartItems = useCartStore((s) => s.items)
   const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0)
   const navigate = useNavigate()
+  const addNotification = useNotificationsStore((s) => s.addNotification)
+
+  // Connexion WebSocket temps réel (active seulement si connecté)
+  const handleWsMessage = useCallback((data) => {
+    const notif = addNotification(data)
+    // Toast flash selon le type d'événement
+    if (data.type === 'commande_update' || data.type === 'notification') {
+      toast(notif.message, {
+        icon: data.statut === 'DISTRIBUEE' ? '🎉'
+            : data.statut === 'REJETEE'   ? '❌'
+            : data.statut === 'VALIDEE'   ? '✅'
+            : '📦',
+        duration: 5000,
+      })
+    }
+  }, [addNotification])
+
+  useWebSocket(user?.id ? WS_URL : null, handleWsMessage)
 
   const navItems = navByRole[user?.role] ?? []
 
@@ -219,6 +247,9 @@ export default function DashboardLayout({ children }) {
           </button>
 
           <div className="flex-1" />
+
+          {/* Cloche de notifications (tous les rôles) */}
+          <NotificationBell />
 
           {user?.role === 'ETUDIANT' && (
             <Link

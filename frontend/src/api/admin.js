@@ -15,3 +15,8 @@ export const configApi = {
   update: (data) =>
     client.patch('/configuration/', data).then((r) => r.data),
 }
+
+export const comptabiliteApi = {
+  get: (periode = 'month') =>
+    client.get('/admin/comptabilite/', { params: { periode } }).then((r) => r.data),
+}

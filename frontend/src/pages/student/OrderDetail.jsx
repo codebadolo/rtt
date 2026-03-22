@@ -10,7 +10,6 @@ import {
   Package,
   Phone,
   Printer,
-  Truck,
   XCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -98,10 +97,9 @@ export default function StudentOrderDetail() {
   const canPrint    = ['VALIDEE', 'PRETE', 'DISTRIBUEE'].includes(order.statut)
   const paiement    = order.paiement_senfenico
   const methode     = METHODE_CFG[order.methode_paiement]
-  const totalHT     = parseFloat(order.total_ht  || 0)
-  const fraisLiv    = parseFloat(order.frais_livraison || 0)
-  const fraisPay    = parseFloat(order.frais_paiement  || 0)
-  const totalTTC    = parseFloat(order.total_ttc || 0)
+  const totalHT      = parseFloat(order.total_ht     || 0)
+  const fraisService = parseFloat(order.frais_service || 0)
+  const totalTTC     = parseFloat(order.total_ttc    || 0)
 
   return (
     <DashboardLayout>
@@ -195,17 +193,10 @@ export default function StudentOrderDetail() {
             </div>
             <div className="flex justify-between text-sm text-gray-500">
               <span className="flex items-center gap-1">
-                <Truck className="h-3.5 w-3.5" />
-                Frais de livraison
-              </span>
-              <span>{fraisLiv > 0 ? `+ ${fraisLiv.toLocaleString('fr-FR')} FCFA` : 'Gratuit'}</span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-500">
-              <span className="flex items-center gap-1">
                 <CreditCard className="h-3.5 w-3.5" />
-                Frais {methode?.label ?? order.methode_paiement}
+                Frais de service
               </span>
-              <span>{fraisPay > 0 ? `+ ${fraisPay.toLocaleString('fr-FR')} FCFA` : 'Inclus'}</span>
+              <span>+ {fraisService.toLocaleString('fr-FR')} FCFA</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
               <span>Total payé</span>

@@ -6,6 +6,7 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import login, logout
 from django.utils import timezone
 from django.db.models import Q
+from django.conf import settings
 from .models import Utilisateur
 from .serializers import (
     InscriptionGoogleSerializer, InscriptionSerializer, ConnexionSerializer,
@@ -131,6 +132,77 @@ class AuthViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({'message': 'Mot de passe réinitialisé avec succès'})
+
+    @action(detail=False, methods=['post'], url_path='connexion-google')
+    def connexion_google(self, request):
+        """
+        Vérifie un token Google.
+        - Si l'utilisateur existe → connexion directe (retourne le token auth)
+        - Si l'utilisateur n'existe pas → retourne le profil Google pour pré-remplir l'inscription
+        """
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+
+        token = request.data.get('token')
+        if not token:
+            return Response({'error': 'Token Google manquant'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            idinfo = google_id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                settings.GOOGLE_OAUTH2_CLIENT_ID,
+            )
+        except ValueError as e:
+            logger.warning(f"Token Google invalide: {e}")
+            return Response({'error': 'Token Google invalide ou expiré'}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = idinfo.get('email')
+        google_id = idinfo.get('sub')
+
+        # Chercher l'utilisateur par google_id ou email
+        try:
+            user = Utilisateur.objects.get(Q(google_id=google_id) | Q(email=email))
+            # Mettre à jour les champs Google s'ils manquent
+            update_fields = []
+            if not user.google_id:
+                user.google_id = google_id
+                update_fields.append('google_id')
+            if not user.photo_profil and idinfo.get('picture'):
+                user.photo_profil = idinfo.get('picture')
+                update_fields.append('photo_profil')
+            if update_fields:
+                user.save(update_fields=update_fields)
+
+            if not user.est_actif:
+                return Response({'error': 'Ce compte est désactivé'}, status=status.HTTP_403_FORBIDDEN)
+
+            user.marquer_connexion()
+            auth_token, _ = Token.objects.get_or_create(user=user)
+            logger.info(f"Connexion Google réussie: {user.email}")
+            return Response({
+                'action': 'login',
+                'token': auth_token.key,
+                'user_id': user.id,
+                'email': user.email,
+                'nom_complet': user.get_full_name(),
+                'role': user.role,
+            })
+
+        except Utilisateur.DoesNotExist:
+            # Aucun compte trouvé → retourner le profil pour pré-remplir l'inscription
+            logger.info(f"Aucun compte Google trouvé pour: {email}")
+            return Response({
+                'action': 'register',
+                'profile': {
+                    'email': email,
+                    'prenom': idinfo.get('given_name', ''),
+                    'nom': idinfo.get('family_name', ''),
+                    'photo': idinfo.get('picture', ''),
+                    'google_id': google_id,
+                    'token': token,
+                },
+            }, status=status.HTTP_200_OK)
 
 
 # ──────────────────── VIEWSET UTILISATEUR ────────────────────

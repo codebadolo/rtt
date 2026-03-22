@@ -35,12 +35,12 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         model = Commande
         fields = [
             'id', 'numero_commande', 'statut', 'total_ht', 'total_ttc',
-            'frais_livraison', 'frais_paiement',
+            'frais_service',
             'salle',
             'methode_paiement', 'telephone_paiement',
             'description_besoin', 'heure_souhaitee', 'lignes',
         ]
-        read_only_fields = ['id', 'numero_commande', 'statut', 'total_ht', 'total_ttc', 'frais_livraison', 'frais_paiement']
+        read_only_fields = ['id', 'numero_commande', 'statut', 'total_ht', 'total_ttc', 'frais_service']
         extra_kwargs = {
             'heure_souhaitee': {'required': True},
         }
@@ -103,7 +103,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
         model = Commande
         fields = [
             'id', 'numero_commande', 'statut', 'total_ht', 'total_ttc',
-            'frais_livraison', 'frais_paiement',
+            'frais_service',
             'etudiant_nom', 'etudiant_email', 'etudiant_id',
             'salle_nom', 'secteur_nom',
             'methode_paiement', 'methode_paiement_display',

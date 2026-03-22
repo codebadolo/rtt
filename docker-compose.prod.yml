@@ -1,0 +1,122 @@
+# ─── Docker Compose PRODUCTION ────────────────────────────────────────────────
+# Usage : docker compose -f docker-compose.prod.yml up -d --build
+# VPS Contabo — ritoto-campus.com / api.ritoto-campus.com
+
+services:
+
+  # ── Base de données ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ritoto-postgres
+    env_file: .env.production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # ── Cache & Channel Layer ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ritoto-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+  # ── Backend HTTP (Gunicorn) ────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: ritoto-backend
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+    env_file: .env.production
+    volumes:
+      - static_data:/app/static
+      - media_data:/app/media
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  # ── Backend WebSockets (Daphne) ────────────────────────────────────────────────
+  daphne:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: ritoto-daphne
+    command: daphne -b 0.0.0.0 -p 8001 config.asgi:application
+    env_file: .env.production
+    volumes:
+      - media_data:/app/media
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  # ── Frontend React (fichiers statiques) ────────────────────────────────────────
+  frontend:
+    image: nginx:1.25-alpine
+    container_name: ritoto-frontend
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./docker/nginx/frontend.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - internal
+    restart: always
+
+  # ── Reverse Proxy (Nginx + SSL) ────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ritoto-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+      - ./frontend/dist:/var/www/html:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - internal
+      - external
+    depends_on:
+      - backend
+      - daphne
+      - frontend
+    restart: always
+
+networks:
+  internal:
+    driver: bridge
+  external:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_data:
+  media_data:

@@ -1,0 +1,47 @@
+# ─── Environnements (ne jamais committer !) ───────────────────────────────────
+.env
+.env.production
+.env.development
+.env.local
+*.env
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# ─── Django ───────────────────────────────────────────────────────────────────
+db/
+*.sqlite3
+static/
+media/
+logs/
+
+# ─── Node / Frontend ──────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+docker/nginx/conf.d/*.conf
+
+# ─── IDEs ─────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ─── Backups ──────────────────────────────────────────────────────────────────
+backups/
+*.tar.gz
+*.sql
+
+# ─── Settings de backup ───────────────────────────────────────────────────────
+config/settings.py.bak

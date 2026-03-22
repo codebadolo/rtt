@@ -37,7 +37,9 @@ class CommandeViewSet(viewsets.ModelViewSet):
         return CommandeListSerializer
 
     def perform_create(self, serializer):
-        serializer.save(etudiant=self.request.user)
+        commande = serializer.save(etudiant=self.request.user)
+        from apps.commandes.consumers import notifier_nouvelle_commande
+        notifier_nouvelle_commande(commande)
 
     def get_queryset(self):
         queryset = super().get_queryset()

@@ -54,30 +54,13 @@ export default function StudentCart() {
 
   const rooms = Array.isArray(roomsData) ? roomsData : roomsData?.results ?? []
 
-  const { fraisLivraison, fraisPaiement, totalTTC } = useMemo(() => {
-    if (!config) return { fraisLivraison: 0, fraisPaiement: 0, totalTTC: total }
-
-    let fraisLivraison = 0
-    if (config.frais_livraison_actif && parseFloat(config.frais_livraison_montant) > 0) {
-      if (config.frais_livraison_type === 'FIXE') {
-        fraisLivraison = parseFloat(config.frais_livraison_montant)
-      } else {
-        fraisLivraison = Math.round(total * parseFloat(config.frais_livraison_montant) / 100)
-      }
-    }
-
-    const taux = {
-      ORANGE: parseFloat(config.frais_orange || 0),
-      MOOV:   parseFloat(config.frais_moov   || 0),
-      SANK:   parseFloat(config.frais_sank   || 0),
-    }[selectedMethode] ?? 0
-
-    const base = total + fraisLivraison
-    const fraisPaiement = Math.round(base * taux / 100)
-    const totalTTC = total + fraisLivraison + fraisPaiement
-
-    return { fraisLivraison, fraisPaiement, totalTTC }
-  }, [config, total, selectedMethode])
+  const { fraisService, totalTTC } = useMemo(() => {
+    if (!config) return { fraisService: 0, totalTTC: total }
+    const taux = parseFloat(config.taux_service || 10)
+    const fraisService = Math.round(total * taux / 100)
+    const totalTTC = total + fraisService
+    return { fraisService, totalTTC }
+  }, [config, total])
 
   // Mutation 2 : initier le paiement Senfenico après création de la commande
   const initierPaiementMutation = useMutation({
@@ -378,19 +361,10 @@ export default function StudentCart() {
                     <span>Sous-total produits</span>
                     <span>{total.toLocaleString('fr-FR')} FCFA</span>
                   </div>
-                  {fraisLivraison > 0 && (
+                  {fraisService > 0 && (
                     <div className="flex justify-between text-sm text-gray-500">
-                      <span>Frais de livraison</span>
-                      <span>+ {fraisLivraison.toLocaleString('fr-FR')} FCFA</span>
-                    </div>
-                  )}
-                  {fraisPaiement > 0 && (
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>
-                        Frais {PAYMENT_METHODS.find((m) => m.value === selectedMethode)?.label}
-                        {' '}({({ ORANGE: config?.frais_orange, MOOV: config?.frais_moov, SANK: config?.frais_sank })[selectedMethode] ?? 0}%)
-                      </span>
-                      <span>+ {fraisPaiement.toLocaleString('fr-FR')} FCFA</span>
+                      <span>Frais de service ({config?.taux_service ?? 10}%)</span>
+                      <span>+ {fraisService.toLocaleString('fr-FR')} FCFA</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-lg text-gray-900 pt-1 border-t border-gray-100">

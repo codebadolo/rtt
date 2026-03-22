@@ -18,10 +18,9 @@ export function printReceipt(order) {
   const lignes       = order.lignes ?? []
   const methodeLabel = METHODE_LABEL[order.methode_paiement] ?? order.methode_paiement ?? ''
   const statutLabel  = STATUT_LABEL[order.statut] ?? order.statut ?? ''
-  const totalHT      = parseFloat(order.total_ht  || 0)
-  const fraisLiv     = parseFloat(order.frais_livraison || 0)
-  const fraisPay     = parseFloat(order.frais_paiement  || 0)
-  const totalTTC     = parseFloat(order.total_ttc || 0)
+  const totalHT      = parseFloat(order.total_ht      || 0)
+  const fraisService = parseFloat(order.frais_service || 0)
+  const totalTTC     = parseFloat(order.total_ttc     || 0)
 
   const dateStr = new Date(order.date_creation).toLocaleDateString('fr-FR', {
     day: '2-digit', month: 'long', year: 'numeric',
@@ -105,8 +104,7 @@ export function printReceipt(order) {
     <span>Sous-total produits</span>
     <span>${totalHT.toLocaleString('fr-FR')} FCFA</span>
   </div>
-  <div class="summary-row muted"><span>Frais de livraison</span><span>${fraisLiv > 0 ? `+ ${fraisLiv.toLocaleString('fr-FR')} FCFA` : 'Gratuit'}</span></div>
-  <div class="summary-row muted"><span>Frais ${methodeLabel}</span><span>${fraisPay > 0 ? `+ ${fraisPay.toLocaleString('fr-FR')} FCFA` : 'Inclus'}</span></div>
+  <div class="summary-row muted"><span>Frais de service</span><span>+ ${fraisService.toLocaleString('fr-FR')} FCFA</span></div>
   <div class="summary-row total">
     <span>Total payé</span>
     <span>${totalTTC.toLocaleString('fr-FR')} FCFA</span>

@@ -351,33 +351,11 @@ class Configuration(models.Model):
     Frais de livraison + frais de paiement par opérateur.
     """
 
-    TYPE_FRAIS = [
-        ('FIXE', 'Montant fixe (FCFA)'),
-        ('POURCENTAGE', 'Pourcentage du sous-total (%)'),
-    ]
-
-    # Frais de livraison
-    frais_livraison_actif = models.BooleanField('Frais de livraison actifs', default=True)
-    frais_livraison_montant = models.DecimalField(
-        'Montant / taux de livraison',
-        max_digits=10, decimal_places=2, default=0,
-        help_text="En FCFA si type FIXE, en % si type POURCENTAGE"
-    )
-    frais_livraison_type = models.CharField(
-        'Type de frais livraison', max_length=15,
-        choices=TYPE_FRAIS, default='FIXE'
-    )
-
-    # Frais de paiement par opérateur (en %)
-    frais_orange = models.DecimalField(
-        'Frais Orange Money (%)', max_digits=5, decimal_places=2, default=0,
-        help_text="Pourcentage appliqué sur le montant total (livraison incluse)"
-    )
-    frais_moov = models.DecimalField(
-        'Frais Moov Money (%)', max_digits=5, decimal_places=2, default=0
-    )
-    frais_sank = models.DecimalField(
-        'Frais Sank Money (%)', max_digits=5, decimal_places=2, default=0
+    # Taux de frais de service appliqué sur le sous-total produits (en %)
+    taux_service = models.DecimalField(
+        'Taux de frais de service (%)',
+        max_digits=5, decimal_places=2, default=10,
+        help_text="Pourcentage appliqué sur le sous-total produits (ex: 10 = 10%)"
     )
 
     date_modification = models.DateTimeField('Dernière modification', auto_now=True)
@@ -395,37 +373,18 @@ class Configuration(models.Model):
         config, _ = cls.objects.get_or_create(pk=1)
         return config
 
-    def calculer_frais(self, total_ht, methode_paiement):
+    def calculer_frais(self, total_ht, methode_paiement=None):
         """
-        Calcule les frais pour une commande.
-        Retourne (frais_livraison, frais_paiement, total_ttc) en Decimal.
+        Calcule les frais de service pour une commande.
+        Retourne (frais_service, total_ttc) en Decimal.
         """
         from decimal import Decimal, ROUND_HALF_UP
 
         total_ht = Decimal(str(total_ht))
+        taux = Decimal(str(self.taux_service))
 
-        # ── Frais de livraison ──
-        if self.frais_livraison_actif and self.frais_livraison_montant > 0:
-            if self.frais_livraison_type == 'FIXE':
-                frais_livraison = Decimal(str(self.frais_livraison_montant))
-            else:
-                frais_livraison = (
-                    total_ht * Decimal(str(self.frais_livraison_montant)) / Decimal('100')
-                ).quantize(Decimal('1'), rounding=ROUND_HALF_UP)
-        else:
-            frais_livraison = Decimal('0')
-
-        # ── Frais de paiement selon l'opérateur ──
-        taux_map = {
-            'ORANGE': Decimal(str(self.frais_orange)),
-            'MOOV':   Decimal(str(self.frais_moov)),
-            'SANK':   Decimal(str(self.frais_sank)),
-        }
-        taux = taux_map.get(methode_paiement, Decimal('0'))
-        base = total_ht + frais_livraison
-        frais_paiement = (base * taux / Decimal('100')).quantize(
+        frais_service = (total_ht * taux / Decimal('100')).quantize(
             Decimal('1'), rounding=ROUND_HALF_UP
         )
-
-        total_ttc = total_ht + frais_livraison + frais_paiement
-        return frais_livraison, frais_paiement, total_ttc
+        total_ttc = total_ht + frais_service
+        return frais_service, total_ttc

@@ -1,15 +1,35 @@
+# ─── Django core ─────────────────────────────────────────────────────────────
 Django==5.0.2
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
-pillow==10.2.0
+django-filter==23.5
 python-dotenv==1.0.0
-django-daisy
+
+# ─── Base de données ──────────────────────────────────────────────────────────
+psycopg2-binary==2.9.9
+
+# ─── WebSockets & temps réel ─────────────────────────────────────────────────
+channels==4.1.0
+channels-redis==4.2.0
+daphne==4.1.2
+
+# ─── Serveur WSGI production ──────────────────────────────────────────────────
+gunicorn==21.2.0
+
+# ─── Cache Redis ──────────────────────────────────────────────────────────────
+django-redis==5.4.0
+
+# ─── Fichiers & images ────────────────────────────────────────────────────────
+pillow==10.2.0
+
+# ─── Admin & UI ───────────────────────────────────────────────────────────────
+django-simpleui
+django-modal-actions
+drf-yasg==1.21.7
+
+# ─── Auth Google (optionnel) ──────────────────────────────────────────────────
 google-auth==2.26.0
 google-auth-oauthlib==1.1.0
 google-auth-httplib2==0.1.1
 django-allauth==0.57.0
 dj-rest-auth==4.0.1
-django-filter==23.5
-drf-yasg==1.21.7
-django-simpleui
-django-modal-actions

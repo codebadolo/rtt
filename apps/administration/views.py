@@ -496,3 +496,105 @@ def configuration_view(request):
         serializer.save()
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ──────────────────── COMPTABILITÉ ────────────────────
+@drf_api_view(['GET'])
+def comptabilite_view(request):
+    """
+    GET /api/admin/comptabilite/?periode=today|week|month|all
+    Statistiques financières pour l'administration.
+    """
+    if not (request.user.is_authenticated and hasattr(request.user, 'est_admin') and request.user.est_admin):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
+    from datetime import timedelta
+    from django.db.models import Sum, Count, Q
+    from apps.commandes.models import Commande
+
+    periode = request.query_params.get('periode', 'month')
+    today = timezone.now().date()
+
+    if periode == 'today':
+        date_debut = today
+    elif periode == 'week':
+        date_debut = today - timedelta(days=6)
+    elif periode == 'month':
+        date_debut = today.replace(day=1)
+    else:  # all
+        date_debut = None
+
+    # Filtrer les commandes validées / distribuées
+    statuts_encaissees = ['VALIDEE', 'PRETE', 'DISTRIBUEE']
+    qs_base = Commande.objects.filter(statut__in=statuts_encaissees)
+    qs_all = Commande.objects.all()
+
+    if date_debut:
+        qs_base = qs_base.filter(date_creation__date__gte=date_debut)
+        qs_all = qs_all.filter(date_creation__date__gte=date_debut)
+
+    agg = qs_base.aggregate(
+        nb_commandes=Count('id'),
+        ca_brut=Sum('total_ttc'),
+        revenus_produits=Sum('total_ht'),
+        frais_service_total=Sum('frais_service'),
+    )
+    agg_all = qs_all.aggregate(
+        nb_total=Count('id'),
+        nb_en_attente=Count('id', filter=Q(statut='EN_ATTENTE')),
+        nb_validees=Count('id', filter=Q(statut__in=statuts_encaissees)),
+        nb_annulees=Count('id', filter=Q(statut__in=['ANNULEE', 'REJETEE'])),
+    )
+
+    config = Configuration.get_active()
+
+    # Par secteur
+    par_secteur = []
+    for secteur in Secteur.objects.filter(est_actif=True):
+        qs_s = qs_base.filter(secteur=secteur)
+        agg_s = qs_s.aggregate(
+            nb=Count('id'),
+            ca=Sum('total_ttc'),
+            ht=Sum('total_ht'),
+            fs=Sum('frais_service'),
+        )
+        par_secteur.append({
+            'id': secteur.id,
+            'nom': secteur.nom,
+            'nb_commandes': agg_s['nb'] or 0,
+            'ca_brut': float(agg_s['ca'] or 0),
+            'revenus_produits': float(agg_s['ht'] or 0),
+            'frais_service': float(agg_s['fs'] or 0),
+        })
+    par_secteur.sort(key=lambda x: x['ca_brut'], reverse=True)
+
+    # Évolution journalière (7 derniers jours ou depuis date_debut)
+    nb_jours = min((today - date_debut).days + 1 if date_debut else 30, 30)
+    evolution = []
+    for i in range(nb_jours - 1, -1, -1):
+        d = today - timedelta(days=i)
+        qs_j = Commande.objects.filter(statut__in=statuts_encaissees, date_creation__date=d)
+        agg_j = qs_j.aggregate(nb=Count('id'), ca=Sum('total_ttc'), fs=Sum('frais_service'))
+        evolution.append({
+            'date': d.strftime('%d/%m'),
+            'nb_commandes': agg_j['nb'] or 0,
+            'ca_brut': float(agg_j['ca'] or 0),
+            'frais_service': float(agg_j['fs'] or 0),
+        })
+
+    return Response({
+        'periode': periode,
+        'taux_service': float(config.taux_service),
+        'resume': {
+            'nb_commandes_encaissees': agg['nb_commandes'] or 0,
+            'nb_total': agg_all['nb_total'] or 0,
+            'nb_en_attente': agg_all['nb_en_attente'] or 0,
+            'nb_validees': agg_all['nb_validees'] or 0,
+            'nb_annulees': agg_all['nb_annulees'] or 0,
+            'ca_brut': float(agg['ca_brut'] or 0),
+            'revenus_produits': float(agg['revenus_produits'] or 0),
+            'frais_service_total': float(agg['frais_service_total'] or 0),
+        },
+        'par_secteur': par_secteur,
+        'evolution': evolution,
+    })

@@ -34,6 +34,7 @@ import AdminOrderDetail from './pages/admin/AdminOrderDetail'
 import AdminPayments from './pages/admin/Payments'
 import AdminSenfenicoTests from './pages/admin/SenfenicoTests'
 import AdminConfiguration from './pages/admin/Configuration'
+import AdminComptabilite from './pages/admin/Comptabilite'
 
 // Chef pages
 import ChefDashboard from './pages/chef/Dashboard'
@@ -131,6 +132,7 @@ export default function App() {
               <Route path="/paiements" element={<AdminPayments />} />
               <Route path="/paiements/senfenico" element={<AdminSenfenicoTests />} />
               <Route path="/configuration" element={<AdminConfiguration />} />
+              <Route path="/comptabilite" element={<AdminComptabilite />} />
             </Routes>
           </ProtectedRoute>
         }
