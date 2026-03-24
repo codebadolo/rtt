@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Description de l'utilisation de l'API Google — Ritoto Express</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Times New Roman', Georgia, serif;
+    font-size: 12pt;
+    color: #1a1a1a;
+    background: white;
+    line-height: 1.8;
+  }
+
+  .page {
+    max-width: 750px;
+    margin: 0 auto;
+    padding: 72px 72px;
+  }
+
+  /* ── En-tête ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #1a1a1a;
+  }
+
+  .header-left h1 {
+    font-size: 18pt;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #1a1a1a;
+  }
+
+  .header-left p {
+    font-size: 10pt;
+    color: #555;
+    margin-top: 4px;
+  }
+
+  .header-right {
+    text-align: right;
+    font-size: 10pt;
+    color: #555;
+    line-height: 1.6;
+  }
+
+  /* ── Destinataire ── */
+  .to-block {
+    margin-bottom: 32px;
+  }
+
+  .to-block p {
+    font-size: 11pt;
+    line-height: 1.7;
+  }
+
+  .to-block .label {
+    font-weight: bold;
+  }
+
+  /* ── Objet ── */
+  .subject {
+    margin-bottom: 32px;
+    padding: 14px 20px;
+    background: #f7f7f7;
+    border-left: 4px solid #1a1a1a;
+  }
+
+  .subject p {
+    font-size: 11pt;
+    font-weight: bold;
+  }
+
+  /* ── Corps ── */
+  .salutation {
+    margin-bottom: 20px;
+    font-size: 12pt;
+  }
+
+  .body-text {
+    font-size: 11.5pt;
+    line-height: 1.85;
+    margin-bottom: 16px;
+    text-align: justify;
+  }
+
+  /* ── Sections numérotées ── */
+  .section {
+    margin: 28px 0;
+  }
+
+  .section-title {
+    font-size: 12pt;
+    font-weight: bold;
+    text-decoration: underline;
+    margin-bottom: 10px;
+  }
+
+  /* ── Tableau ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 10.5pt;
+  }
+
+  thead th {
+    background: #1a1a1a;
+    color: white;
+    padding: 9px 14px;
+    text-align: left;
+    font-weight: bold;
+  }
+
+  tbody td {
+    padding: 8px 14px;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+
+  tbody tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+
+  /* ── Liste ── */
+  ul, ol {
+    padding-left: 24px;
+    margin: 10px 0;
+  }
+
+  li {
+    font-size: 11pt;
+    line-height: 1.8;
+    margin-bottom: 4px;
+  }
+
+  /* ── Signature ── */
+  .signature {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid #ccc;
+  }
+
+  .signature-line {
+    margin-bottom: 6px;
+    font-size: 11pt;
+  }
+
+  .signature-name {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-top: 16px;
+  }
+
+  .signature-title {
+    font-size: 10.5pt;
+    color: #555;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 48px;
+    padding-top: 12px;
+    border-top: 1px solid #ccc;
+    text-align: center;
+    font-size: 9pt;
+    color: #888;
+  }
+
+  @page { margin: 0; size: A4; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- En-tête -->
+  <div class="header">
+    <div class="header-left">
+      <h1>RITOTO EXPRESS</h1>
+      <p>Plateforme de commande de repas sur campus</p>
+      <p>ritoto-campus.com &nbsp;|&nbsp; api.ritoto-campus.com</p>
+    </div>
+    <div class="header-right">
+      <p>Cotonou, le 23 mars 2026</p>
+    </div>
+  </div>
+
+  <!-- Destinataire -->
+  <div class="to-block">
+    <p><span class="label">À l'attention de :</span><br>
+    Google LLC — Équipe de vérification OAuth<br>
+    Google Cloud Platform<br>
+    Identity & Access Management</p>
+  </div>
+
+  <!-- Objet -->
+  <div class="subject">
+    <p>Objet : Description de l'utilisation de l'API Google Sign-In (OAuth 2.0) — Application Ritoto Express</p>
+  </div>
+
+  <!-- Salutation -->
+  <p class="salutation">Madame, Monsieur,</p>
+
+  <!-- Introduction -->
+  <p class="body-text">
+    Nous vous adressons le présent document en réponse à la demande de vérification de notre application
+    dans le cadre de la configuration de l'authentification via Google OAuth 2.0. Ce document décrit
+    de manière précise et transparente la nature de notre application, les données que nous sollicitons
+    auprès de vos services, ainsi que l'usage exclusif que nous en faisons.
+  </p>
+
+  <!-- Section 1 -->
+  <div class="section">
+    <p class="section-title">1. Présentation de l'application</p>
+    <p class="body-text">
+      Ritoto Express est une plateforme numérique de commande de repas destinée aux étudiants d'un
+      campus universitaire. Elle permet aux étudiants de consulter un menu, composer et passer des
+      commandes en ligne, effectuer un paiement mobile, puis suivre l'état de leur commande en temps
+      réel jusqu'à la livraison dans leur salle de cours.
+    </p>
+    <p class="body-text">
+      La plateforme est accessible à l'adresse <strong>https://ritoto-campus.com</strong> et
+      s'appuie sur une API REST sécurisée hébergée à <strong>https://api.ritoto-campus.com</strong>.
+      Elle est destinée à un usage interne au campus et s'adresse à quatre catégories d'utilisateurs :
+      les étudiants, les chefs de secteur, les livreurs et les administrateurs.
+    </p>
+  </div>
+
+  <!-- Section 2 -->
+  <div class="section">
+    <p class="section-title">2. Raison de l'intégration de Google Sign-In</p>
+    <p class="body-text">
+      Nous avons intégré Google Sign-In pour offrir aux étudiants une alternative simple et sécurisée
+      à la création d'un compte par email et mot de passe. La majorité de notre public cible possède
+      déjà un compte Google via leur adresse universitaire. Cette intégration leur permet de s'inscrire
+      et de se connecter sans avoir à mémoriser un mot de passe supplémentaire, tout en bénéficiant
+      de la sécurité que Google garantit sur ses comptes.
+    </p>
+    <p class="body-text">
+      Google Sign-In est utilisé uniquement comme mécanisme d'identification. Il ne remplace pas
+      notre système de gestion interne des utilisateurs : chaque compte reste enregistré dans notre
+      propre base de données PostgreSQL avec les informations complémentaires spécifiques au campus
+      (matricule étudiant, numéro de téléphone, secteur).
+    </p>
+  </div>
+
+  <!-- Section 3 -->
+  <div class="section">
+    <p class="section-title">3. Données sollicitées et justification de chaque permission</p>
+    <p class="body-text">
+      Notre application demande uniquement les permissions strictement nécessaires à
+      l'identification de l'utilisateur. Le tableau ci-dessous détaille chaque donnée
+      sollicitée et son utilisation précise dans notre système.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Donnée demandée</th>
+          <th>Scope Google</th>
+          <th>Utilisation dans Ritoto Express</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Adresse email</strong></td>
+          <td>email</td>
+          <td>
+            Sert d'identifiant unique dans notre base de données. Elle est également
+            utilisée pour envoyer les notifications de commande (confirmation, statut,
+            réinitialisation de mot de passe).
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Prénom et nom</strong></td>
+          <td>profile</td>
+          <td>
+            Pré-remplissage du formulaire d'inscription. L'utilisateur peut les modifier
+            avant de finaliser la création de son compte. Ces informations apparaissent
+            dans l'interface (initiales dans l'avatar, nom complet dans les commandes).
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Identifiant Google (sub)</strong></td>
+          <td>openid</td>
+          <td>
+            Stocké dans notre base de données pour identifier de manière unique
+            un compte Google lors des connexions suivantes, même si l'utilisateur
+            change son adresse email Google.
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Photo de profil</strong></td>
+          <td>profile</td>
+          <td>
+            Affichée dans la barre de navigation de l'application comme avatar
+            personnalisé. Son utilisation est purement cosmétique. L'URL de la photo
+            est stockée, mais l'image elle-même n'est pas téléchargée ni hébergée
+            sur nos serveurs.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p class="body-text">
+      Nous ne demandons aucun accès aux contacts, à l'agenda, aux emails, aux fichiers
+      Google Drive, ni à aucune autre ressource de l'utilisateur. Notre application
+      n'effectue aucune action au nom de l'utilisateur sur les services Google.
+    </p>
+  </div>
+
+  <!-- Section 4 -->
+  <div class="section">
+    <p class="section-title">4. Description technique du flux d'authentification</p>
+    <p class="body-text">
+      Le flux d'authentification est entièrement conforme aux recommandations de Google
+      pour les applications web. Il se déroule en quatre étapes :
+    </p>
+    <ol>
+      <li>
+        L'utilisateur clique sur le bouton « Continuer avec Google » sur la page de
+        connexion ou d'inscription. La bibliothèque <code>@react-oauth/google</code>
+        (version officielle de Google) ouvre la fenêtre de sélection de compte Google.
+      </li>
+      <li>
+        Après consentement de l'utilisateur, Google retourne un jeton d'accès
+        (<em>access token</em>) à notre frontend.
+      </li>
+      <li>
+        Notre frontend envoie ce jeton à notre API backend
+        (<code>POST /api/auth/connexion-google/</code>). Le backend vérifie le
+        jeton auprès des serveurs Google via la bibliothèque officielle
+        <code>google-auth</code> (Python). Si le jeton est invalide ou expiré,
+        la demande est rejetée immédiatement.
+      </li>
+      <li>
+        Si le jeton est valide, notre backend cherche si un compte existe déjà
+        avec cet email ou cet identifiant Google. Dans l'affirmative, l'utilisateur
+        est connecté et reçoit notre propre jeton d'authentification (DRF Token).
+        Dans la négative, l'utilisateur est redirigé vers le formulaire d'inscription
+        avec ses informations pré-remplies.
+      </li>
+    </ol>
+    <p class="body-text">
+      Le jeton Google n'est pas stocké sur nos serveurs. Il est utilisé une seule fois
+      pour la vérification, puis immédiatement abandonné. Notre système émet ensuite
+      son propre token d'authentification pour gérer les sessions.
+    </p>
+  </div>
+
+  <!-- Section 5 -->
+  <div class="section">
+    <p class="section-title">5. Protection des données et conformité</p>
+    <p class="body-text">
+      Les données issues de Google Sign-In sont traitées avec le même niveau de
+      protection que les données saisies manuellement dans nos formulaires. Plus précisément :
+    </p>
+    <ul>
+      <li>
+        Toutes les communications entre le navigateur, notre frontend et notre API
+        sont chiffrées en TLS 1.2 minimum (certificats Let's Encrypt, renouvelés
+        automatiquement tous les 90 jours).
+      </li>
+      <li>
+        Les données sont stockées dans une base de données PostgreSQL hébergée
+        sur un VPS dédié. La base n'est pas accessible depuis l'extérieur du
+        réseau Docker interne.
+      </li>
+      <li>
+        Aucune donnée personnelle n'est partagée avec des tiers, revendue, ou
+        utilisée à des fins publicitaires.
+      </li>
+      <li>
+        L'adresse email et le nom de l'utilisateur sont utilisés exclusivement
+        pour le fonctionnement de la plateforme de commande (identification,
+        suivi de commande, notifications transactionnelles).
+      </li>
+      <li>
+        Les utilisateurs peuvent demander la suppression de leur compte et de
+        l'ensemble de leurs données à tout moment en contactant l'administration.
+      </li>
+    </ul>
+  </div>
+
+  <!-- Section 6 -->
+  <div class="section">
+    <p class="section-title">6. Audience et nature de l'application</p>
+    <p class="body-text">
+      Ritoto Express est une application à usage interne, destinée exclusivement aux
+      membres d'un campus universitaire (étudiants, personnel de restauration). Elle
+      n'est pas ouverte au grand public et ne fait pas l'objet de démarches d'acquisition
+      d'utilisateurs à large échelle.
+    </p>
+    <p class="body-text">
+      Le nombre d'utilisateurs est limité à la population du campus. L'authentification
+      Google est proposée comme option de confort, en complément de l'inscription
+      classique par email et mot de passe qui reste disponible.
+    </p>
+  </div>
+
+  <!-- Conclusion -->
+  <p class="body-text">
+    Nous restons disponibles pour fournir tout document complémentaire, démonstration
+    de l'application, ou précision technique que votre équipe jugerait nécessaire
+    dans le cadre du processus de vérification. Nous nous engageons à respecter
+    scrupuleusement les politiques d'utilisation des API Google et à informer
+    nos utilisateurs de manière transparente sur le traitement de leurs données.
+  </p>
+
+  <p class="body-text">
+    Nous vous remercions de l'attention portée à notre demande et nous tenons
+    à votre entière disposition.
+  </p>
+
+  <!-- Signature -->
+  <div class="signature">
+    <p class="signature-line">Veuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.</p>
+    <br>
+    <p class="signature-line">Cotonou, le 23 mars 2026</p>
+    <br><br>
+    <p class="signature-name">L'Équipe Ritoto Express</p>
+    <p class="signature-title">Administration de la plateforme</p>
+    <p class="signature-title">ritoto-campus.com</p>
+    <p class="signature-title">contact@ritoto-campus.com</p>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>Ritoto Express — Plateforme de commande de repas sur campus — ritoto-campus.com</p>
+  </div>
+
+</div>
+</body>
+</html>

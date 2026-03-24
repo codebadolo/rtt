@@ -1,8 +1,8 @@
-
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.senfenico.com)"
+      "WebFetch(domain:docs.senfenico.com)",
+      "Bash(google-chrome --headless --disable-gpu --print-to-pdf=/home/olli/ritoto-express/business-model.pdf --print-to-pdf-no-header --no-margins /home/olli/ritoto-express/business-model.html)"
     ]
   }
 }

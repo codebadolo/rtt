@@ -89,7 +89,7 @@ export default function Login() {
       <button
         type="button"
         onClick={() => handleGoogleSuccess()}
-        disabled={googleLoading}
+        disabled={googleLoading || !import.meta.env.VITE_GOOGLE_CLIENT_ID}
         className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-xl py-2.5 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors mb-4 disabled:opacity-60"
       >
         {googleLoading ? (

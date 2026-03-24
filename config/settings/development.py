@@ -9,17 +9,12 @@ DEBUG = True
 SECRET_KEY = 'django-insecure-dev-key-change-in-production-ritoto-express-2026'
 ALLOWED_HOSTS = ['*']
 
-# ─── Base de données PostgreSQL locale ───────────────────────────────────────
-# Lancée via docker-compose.yml (service postgres)
+# ─── Base de données SQLite locale ───────────────────────────────────────────
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'ritoto'),
-        'USER': os.getenv('POSTGRES_USER', 'ritoto'),
-        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'ritoto_dev'),
-        'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
-        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db' / 'ritoto-express.sqlite3',
     }
 }
 

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11pt;
+    color: #1a1a2e;
+    background: #fff;
+    padding: 48px 56px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #f97316;
+    padding-bottom: 18px;
+    margin-bottom: 32px;
+  }
+  .logo-text {
+    font-size: 26pt;
+    font-weight: 800;
+    color: #f97316;
+    letter-spacing: -1px;
+  }
+  .logo-text span { color: #1a1a2e; }
+  .header-sub {
+    font-size: 9pt;
+    color: #888;
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* Section titles */
+  h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #f97316;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    margin-top: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 16px;
+    background: #f97316;
+    border-radius: 2px;
+  }
+
+  p { line-height: 1.7; color: #333; margin-bottom: 8px; }
+
+  /* Cards row */
+  .cards {
+    display: flex;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  .card {
+    flex: 1;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card-title {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #f97316;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .card p { font-size: 10pt; color: #555; margin: 0; }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 10.5pt;
+  }
+  thead tr { background: #f97316; color: #fff; }
+  thead th {
+    padding: 9px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9.5pt;
+  }
+  tbody tr:nth-child(even) { background: #fff7ed; }
+  tbody td { padding: 8px 14px; color: #333; border-bottom: 1px solid #f3e8d8; }
+  .bold { font-weight: 700; }
+  .orange { color: #f97316; font-weight: 700; }
+  .green { color: #16a34a; font-weight: 700; }
+
+  /* Highlight box */
+  .highlight {
+    background: #1a1a2e;
+    color: #fff;
+    border-radius: 10px;
+    padding: 18px 24px;
+    margin: 20px 0;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    text-align: center;
+  }
+  .highlight-item .value {
+    font-size: 22pt;
+    font-weight: 800;
+    color: #f97316;
+    line-height: 1;
+  }
+  .highlight-item .label {
+    font-size: 8.5pt;
+    color: #ccc;
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .sep { width: 1px; background: #ffffff30; height: 50px; }
+
+  /* Steps */
+  .steps { display: flex; gap: 0; margin: 16px 0; align-items: stretch; }
+  .step {
+    flex: 1;
+    text-align: center;
+    padding: 14px 10px;
+    position: relative;
+  }
+  .step:not(:last-child)::after {
+    content: '→';
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #f97316;
+    font-size: 16pt;
+    font-weight: 700;
+  }
+  .step-num {
+    width: 28px; height: 28px;
+    background: #f97316;
+    color: #fff;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 11pt;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 8px;
+  }
+  .step-text { font-size: 9pt; color: #444; line-height: 1.4; }
+  .step-title { font-weight: 700; font-size: 10pt; color: #1a1a2e; margin-bottom: 4px; }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    padding-top: 14px;
+    border-top: 1px solid #f3e8d8;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8.5pt;
+    color: #aaa;
+  }
+
+  .tag {
+    display: inline-block;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    color: #ea580c;
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 9pt;
+    font-weight: 600;
+    margin: 3px 3px 3px 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <div class="logo-text">ritoto<span>express</span></div>
+    <div style="font-size:9pt;color:#888;margin-top:4px;">Plateforme de commande & livraison campus</div>
+  </div>
+  <div class="header-sub">
+    Document confidentiel<br>
+    Business Model — Mars 2026
+  </div>
+</div>
+
+<!-- Proposition de valeur -->
+<h2>Proposition de valeur</h2>
+<p>
+  Ritoto Express est une plateforme digitale de commande et livraison de repas et produits
+  à destination des étudiants sur campus. Le client commande via l'application, paie par
+  Mobile Money, et reçoit sa commande directement en salle de classe.
+</p>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-title">Pour l'étudiant</div>
+    <p>Commande en 2 clics, paiement Mobile Money, livraison en salle sans se déplacer.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Pour le campus</div>
+    <p>Gestion centralisée par secteur, traçabilité complète, zéro cash à manipuler.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Pour le livreur</div>
+    <p>Tournées organisées par salle, notifications temps réel, distribution optimisée.</p>
+  </div>
+</div>
+
+<!-- Flux opérationnel -->
+<h2>Flux opérationnel</h2>
+<div class="steps">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-title">Commande</div>
+    <div class="step-text">L'étudiant choisit ses produits et valide sa commande</div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-title">Paiement</div>
+    <div class="step-text">Paiement Mobile Money via Senfenico (Orange / Moov / Sank)</div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-title">Validation</div>
+    <div class="step-text">Chef de secteur confirme le paiement reçu</div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-title">Livraison</div>
+    <div class="step-text">Livreur distribue en salle, statut mis à jour en temps réel</div>
+  </div>
+</div>
+
+<!-- Modèle de revenus -->
+<h2>Modèle de revenus</h2>
+<p>Le revenu de la plateforme repose sur des <strong>frais de service</strong> prélevés sur chaque commande.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Élément</th>
+      <th>Calcul</th>
+      <th>Exemple (cmd 500 FCFA)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Montant produits (HT)</td>
+      <td>Prix catalogue</td>
+      <td>500 FCFA</td>
+    </tr>
+    <tr>
+      <td>Frais de service (taux paramétrable)</td>
+      <td class="bold">10% × HT</td>
+      <td class="orange">+50 FCFA</td>
+    </tr>
+    <tr>
+      <td>Total débité au client (TTC)</td>
+      <td>HT + frais</td>
+      <td class="bold">550 FCFA</td>
+    </tr>
+    <tr>
+      <td>Commission Senfenico collect</td>
+      <td>2.99% × TTC</td>
+      <td style="color:#dc2626;">−16 FCFA</td>
+    </tr>
+    <tr>
+      <td class="bold">Bénéfice net plateforme</td>
+      <td>Frais − commission</td>
+      <td class="green">= 34 FCFA</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- KPIs clés -->
+<div class="highlight">
+  <div class="highlight-item">
+    <div class="value">10%</div>
+    <div class="label">Frais de service</div>
+  </div>
+  <div class="sep"></div>
+  <div class="highlight-item">
+    <div class="value">2.99%</div>
+    <div class="label">Commission Senfenico</div>
+  </div>
+  <div class="sep"></div>
+  <div class="highlight-item">
+    <div class="value">~68%</div>
+    <div class="label">Des frais conservés</div>
+  </div>
+  <div class="sep"></div>
+  <div class="highlight-item">
+    <div class="value">0%</div>
+    <div class="label">Frais de retrait</div>
+  </div>
+</div>
+
+<!-- Structure des coûts -->
+<h2>Structure des coûts</h2>
+<table>
+  <thead>
+    <tr><th>Coût</th><th>Type</th><th>Taux</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Commission Senfenico (collect)</td><td>Variable</td><td>2.99% du montant collecté</td></tr>
+    <tr><td>Frais de payout (si transfert auto)</td><td>Variable</td><td>1.50% du montant transféré</td></tr>
+    <tr><td>Retrait / Settlement</td><td>—</td><td class="green">Gratuit (0%)</td></tr>
+    <tr><td>Hébergement serveur</td><td>Fixe</td><td>À définir selon infra</td></tr>
+  </tbody>
+</table>
+
+<!-- Méthodes de paiement -->
+<h2>Méthodes de paiement acceptées</h2>
+<span class="tag">Orange Money</span>
+<span class="tag">Moov Money</span>
+<span class="tag">Sank Money</span>
+<span class="tag">Coris Money</span>
+
+<!-- Levier de croissance -->
+<h2>Leviers de croissance</h2>
+<div class="cards">
+  <div class="card">
+    <div class="card-title">Volume</div>
+    <p>Plus de commandes par jour = revenus proportionnels. Pas de coût fixe supplémentaire.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Multi-campus</div>
+    <p>Architecture multi-secteurs prête à l'emploi. Déploiement sur un nouveau campus = configurer secteurs + salles.</p>
+  </div>
+  <div class="card">
+    <div class="card-title">Taux ajustable</div>
+    <p>Le taux de frais est paramétrable en admin sans toucher au code.</p>
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <span>Ritoto Express — Document interne confidentiel</span>
+  <span>Mars 2026</span>
+</div>
+
+</body>
+</html>
