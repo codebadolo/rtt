@@ -90,6 +90,69 @@ def soumettre_otp(charge_reference: str, otp: str) -> dict:
         raise
 
 
+def fetch_balance() -> dict:
+    """
+    Récupère le solde Senfenico (collection + transfer balances).
+    Retourne le dict `data` de la réponse.
+    """
+    try:
+        resp = requests.get(
+            f"{SENFENICO_BASE_URL}/v1/payment/balances",
+            headers=_headers(),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if not body.get("status"):
+            raise ValueError(body.get("message", "Erreur Senfenico"))
+        return body["data"]
+    except requests.RequestException as e:
+        logger.error("Senfenico fetch_balance error: %s", e)
+        raise
+
+
+def creer_settlement(montant: int) -> dict:
+    """
+    Déclenche un settlement vers le compte configuré dans le dashboard Senfenico.
+    Retourne le dict `data` de la réponse.
+    """
+    try:
+        resp = requests.post(
+            f"{SENFENICO_BASE_URL}/v1/payment/settlements/",
+            json={"amount": montant},
+            headers=_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if not body.get("status"):
+            raise ValueError(body.get("message", "Erreur Senfenico settlement"))
+        return body["data"]
+    except requests.RequestException as e:
+        logger.error("Senfenico creer_settlement error: %s", e)
+        raise
+
+
+def fetch_settlements() -> list:
+    """
+    Récupère la liste des settlements depuis Senfenico.
+    """
+    try:
+        resp = requests.get(
+            f"{SENFENICO_BASE_URL}/v1/payment/settlements",
+            headers=_headers(),
+            timeout=15,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if not body.get("status"):
+            raise ValueError(body.get("message", "Erreur Senfenico"))
+        return body.get("data", [])
+    except requests.RequestException as e:
+        logger.error("Senfenico fetch_settlements error: %s", e)
+        raise
+
+
 def verifier_webhook_hash(payload_bytes: bytes, received_hash: str) -> bool:
     """
     Vérifie le hash X-Webhook-Hash envoyé par Senfenico.

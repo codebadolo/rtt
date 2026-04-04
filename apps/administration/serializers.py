@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Q
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration
+from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
 from apps.authentification.models import Utilisateur
 
 # ──────────────────── SERIALIZER SECTEUR ────────────────────
@@ -358,6 +358,35 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         model = Configuration
         fields = [
             'taux_service',
+            'numero_orange',
+            'numero_moov',
+            'numero_sank',
             'date_modification',
         ]
         read_only_fields = ['date_modification']
+
+
+# ──────────────────── SERIALIZER SETTLEMENT ────────────────────
+class SettlementRecordSerializer(serializers.ModelSerializer):
+    declenche_par_nom = serializers.SerializerMethodField()
+    compte_display = serializers.CharField(source='get_compte_display', read_only=True)
+    statut_display = serializers.CharField(source='get_statut_display', read_only=True)
+
+    class Meta:
+        model = SettlementRecord
+        fields = [
+            'id', 'reference_senfenico', 'montant', 'compte', 'compte_display',
+            'statut', 'statut_display', 'note', 'declenche_par_nom',
+            'date_creation', 'date_modification',
+        ]
+
+    def get_declenche_par_nom(self, obj):
+        if obj.declenche_par:
+            return obj.declenche_par.get_full_name()
+        return None
+
+
+class SettlementCreateSerializer(serializers.Serializer):
+    montant = serializers.IntegerField(min_value=100)
+    compte = serializers.ChoiceField(choices=['orange', 'moov', 'sank'])
+    note = serializers.CharField(required=False, allow_blank=True, default='')

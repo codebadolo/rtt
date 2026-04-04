@@ -39,6 +39,7 @@ import AdminComptabilite from './pages/admin/Comptabilite'
 // Chef pages
 import ChefDashboard from './pages/chef/Dashboard'
 import ChefOrders from './pages/chef/Orders'
+import ChefComptabilite from './pages/chef/Comptabilite'
 
 // Livreur pages
 import LivreurDashboard from './pages/livreur/Dashboard'
@@ -146,6 +147,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<ChefDashboard />} />
               <Route path="/commandes" element={<ChefOrders />} />
+              <Route path="/comptabilite" element={<ChefComptabilite />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>

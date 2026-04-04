@@ -5,14 +5,14 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration
+from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
 from .serializers import (
     SecteurListSerializer, SecteurDetailSerializer,
     SalleListSerializer, SalleDetailSerializer,
     ProduitListSerializer, ProduitDetailSerializer,
     VarianteSerializer, OptionSerializer,
     HoraireCommandeSerializer, DashboardStatsSerializer,
-    ConfigurationSerializer
+    ConfigurationSerializer, SettlementRecordSerializer, SettlementCreateSerializer
 )
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
 from .permissions import EstAdminOuLectureSeule, PeutGererProduits, PeutGererSecteurs
@@ -582,6 +582,30 @@ def comptabilite_view(request):
             'frais_service': float(agg_j['fs'] or 0),
         })
 
+    # Par salle (top 20 salles)
+    par_salle_qs = qs_base.values(
+        'salle__id', 'salle__nom', 'salle__code', 'secteur__nom'
+    ).annotate(
+        nb=Count('id'),
+        ca=Sum('total_ttc'),
+        ht=Sum('total_ht'),
+        fs=Sum('frais_service'),
+    ).order_by('-ca')[:20]
+
+    par_salle = [
+        {
+            'salle_id': row['salle__id'],
+            'salle_nom': row['salle__nom'] or '—',
+            'salle_code': row['salle__code'] or '—',
+            'secteur_nom': row['secteur__nom'] or '—',
+            'nb_commandes': row['nb'] or 0,
+            'ca_brut': float(row['ca'] or 0),
+            'revenus_produits': float(row['ht'] or 0),
+            'frais_service': float(row['fs'] or 0),
+        }
+        for row in par_salle_qs
+    ]
+
     return Response({
         'periode': periode,
         'taux_service': float(config.taux_service),
@@ -596,5 +620,133 @@ def comptabilite_view(request):
             'frais_service_total': float(agg['frais_service_total'] or 0),
         },
         'par_secteur': par_secteur,
+        'par_salle': par_salle,
         'evolution': evolution,
     })
+
+
+# ──────────────────── SOLDE SENFENICO ────────────────────
+@drf_api_view(['GET'])
+def solde_view(request):
+    """
+    GET /api/admin/solde/
+    Retourne le solde Senfenico en temps réel (collection balance).
+    """
+    if not (request.user.is_authenticated and request.user.est_admin):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
+    from apps.commandes.services import fetch_balance
+    try:
+        data = fetch_balance()
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    config = Configuration.get_active()
+    return Response({
+        'solde': data,
+        'comptes_admin': {
+            'orange': config.numero_orange,
+            'moov': config.numero_moov,
+            'sank': config.numero_sank,
+        }
+    })
+
+
+# ──────────────────── SETTLEMENTS ────────────────────
+@drf_api_view(['GET', 'POST'])
+def settlements_view(request):
+    """
+    GET  /api/admin/settlements/         → historique local + Senfenico
+    POST /api/admin/settlements/         → déclencher un settlement
+    Body POST: { "montant": 5000, "compte": "orange"|"moov"|"sank", "note": "..." }
+    """
+    if not (request.user.is_authenticated and request.user.est_admin):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        records = SettlementRecord.objects.select_related('declenche_par').all()
+        serializer = SettlementRecordSerializer(records, many=True)
+
+        # Totaux par compte
+        totaux = {}
+        for compte_key, _ in SettlementRecord.COMPTE_CHOIX:
+            agg = records.filter(compte=compte_key, statut='success').aggregate(
+                total=Sum('montant')
+            )
+            totaux[compte_key] = float(agg['total'] or 0)
+
+        return Response({
+            'settlements': serializer.data,
+            'totaux_par_compte': totaux,
+            'total_settle': sum(totaux.values()),
+        })
+
+    # POST — déclencher un settlement
+    serializer = SettlementCreateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    montant = serializer.validated_data['montant']
+    compte = serializer.validated_data['compte']
+    note = serializer.validated_data.get('note', '')
+
+    from apps.commandes.services import creer_settlement
+    try:
+        data = creer_settlement(montant)
+    except ValueError as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error("Settlement error: %s", e)
+        return Response(
+            {'error': 'Erreur lors du settlement. Vérifiez votre solde Senfenico.'},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    record = SettlementRecord.objects.create(
+        reference_senfenico=data['reference'],
+        montant=data['amount'],
+        compte=compte,
+        statut=data.get('status', 'processing'),
+        note=note,
+        declenche_par=request.user,
+    )
+
+    return Response(SettlementRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+# ──────────────────── SYNC STATUT SETTLEMENT ────────────────────
+@drf_api_view(['POST'])
+def sync_settlement_view(request, reference):
+    """
+    POST /api/admin/settlements/<reference>/sync/
+    Met à jour le statut d'un settlement depuis Senfenico.
+    """
+    if not (request.user.is_authenticated and request.user.est_admin):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        record = SettlementRecord.objects.get(reference_senfenico=reference)
+    except SettlementRecord.DoesNotExist:
+        return Response({'error': 'Settlement introuvable'}, status=status.HTTP_404_NOT_FOUND)
+
+    import requests as req
+    from django.conf import settings
+    try:
+        resp = req.get(
+            f"https://api.senfenico.com/v1/payment/settlements/{reference}",
+            headers={
+                'Content-Type': 'application/json',
+                'X-API-KEY': settings.SENFENICO_API_KEY,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if body.get('status'):
+            record.statut = body['data']['status']
+            record.save(update_fields=['statut'])
+    except Exception as e:
+        logger.error("Sync settlement error: %s", e)
+        return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    return Response(SettlementRecordSerializer(record).data)

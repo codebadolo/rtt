@@ -249,7 +249,6 @@ class Command(BaseCommand):
                     'prenom': prenom,
                     'telephone': f'7{str(random.randint(0, 9))}{str(random.randint(10000000, 99999999))}',
                     'role': 'ETUDIANT',
-                    'statut_kyc': random.choice(['NON_SOUMIS', 'EN_ATTENTE', 'VALIDE', 'VALIDE']),
                     'est_actif': True,
                 }
             )

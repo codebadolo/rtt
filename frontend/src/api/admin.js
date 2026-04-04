@@ -20,3 +20,19 @@ export const comptabiliteApi = {
   get: (periode = 'month') =>
     client.get('/admin/comptabilite/', { params: { periode } }).then((r) => r.data),
 }
+
+export const soldeApi = {
+  get: () =>
+    client.get('/admin/solde/').then((r) => r.data),
+}
+
+export const settlementsApi = {
+  list: () =>
+    client.get('/admin/settlements/').then((r) => r.data),
+
+  create: (data) =>
+    client.post('/admin/settlements/', data).then((r) => r.data),
+
+  sync: (reference) =>
+    client.post(`/admin/settlements/${reference}/sync/`).then((r) => r.data),
+}

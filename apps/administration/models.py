@@ -358,6 +358,20 @@ class Configuration(models.Model):
         help_text="Pourcentage appliqué sur le sous-total produits (ex: 10 = 10%)"
     )
 
+    # Numéros admin pour recevoir les settlements Senfenico
+    numero_orange = models.CharField(
+        'Numéro Orange Money', max_length=20, blank=True, default='',
+        help_text="Numéro Orange Money configuré dans le dashboard Senfenico"
+    )
+    numero_moov = models.CharField(
+        'Numéro Moov Money', max_length=20, blank=True, default='',
+        help_text="Numéro Moov Money configuré dans le dashboard Senfenico"
+    )
+    numero_sank = models.CharField(
+        'Numéro Sank Money', max_length=20, blank=True, default='',
+        help_text="Numéro Sank Money configuré dans le dashboard Senfenico"
+    )
+
     date_modification = models.DateTimeField('Dernière modification', auto_now=True)
 
     class Meta:
@@ -388,3 +402,48 @@ class Configuration(models.Model):
         )
         total_ttc = total_ht + frais_service
         return frais_service, total_ttc
+
+
+# ─────────────────── Settlements ───────────────────
+class SettlementRecord(models.Model):
+    """
+    Historique local des settlements déclenchés vers les comptes admin.
+    Synchronisé avec Senfenico via la reference.
+    """
+
+    STATUT_CHOIX = [
+        ('processing', 'En cours'),
+        ('in_transit', 'En transit'),
+        ('success', 'Réussi'),
+        ('cancelled', 'Annulé'),
+        ('failed', 'Échoué'),
+    ]
+
+    COMPTE_CHOIX = [
+        ('orange', 'Orange Money'),
+        ('moov', 'Moov Money'),
+        ('sank', 'Sank Money'),
+    ]
+
+    reference_senfenico = models.CharField(
+        'Référence Senfenico', max_length=100, unique=True
+    )
+    montant = models.DecimalField('Montant', max_digits=12, decimal_places=2)
+    compte = models.CharField('Compte destinataire', max_length=10, choices=COMPTE_CHOIX)
+    statut = models.CharField('Statut', max_length=20, choices=STATUT_CHOIX, default='processing')
+    note = models.TextField('Note', blank=True, default='')
+    declenche_par = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL, null=True,
+        related_name='settlements_declenchés'
+    )
+    date_creation = models.DateTimeField('Date création', auto_now_add=True)
+    date_modification = models.DateTimeField('Dernière modification', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Settlement'
+        verbose_name_plural = 'Settlements'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"Settlement {self.reference_senfenico} — {self.montant} FCFA ({self.statut})"
