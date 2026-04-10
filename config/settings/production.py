@@ -1,9 +1,6 @@
-"""
-Settings de production — VPS Contabo.
-"""
 from .base import *
 
-# ─── Sécurité ─────────────────────────────────────────────────────────────────
+# --- Securite ----------------------------------------------------------------
 
 DEBUG = False
 
@@ -13,7 +10,7 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'api.ritoto-campus.com').split(',')
 
-# ─── Base de données PostgreSQL ───────────────────────────────────────────────
+# --- Base de donnees PostgreSQL ----------------------------------------------
 
 DATABASES = {
     'default': {
@@ -21,43 +18,31 @@ DATABASES = {
         'NAME': os.getenv('POSTGRES_DB'),
         'USER': os.getenv('POSTGRES_USER'),
         'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
-        'HOST': os.getenv('POSTGRES_HOST', 'postgres'),
+        'HOST': os.getenv('POSTGRES_HOST', 'db'),
         'PORT': os.getenv('POSTGRES_PORT', '5432'),
         'CONN_MAX_AGE': 60,
         'OPTIONS': {'connect_timeout': 10},
     }
 }
 
-# ─── Cache Redis ──────────────────────────────────────────────────────────────
-
-REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+# --- Cache memoire (pas de Redis en MVP) ------------------------------------
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': REDIS_URL,
-        'TIMEOUT': 300,
-        'KEY_PREFIX': 'ritoto',
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     }
 }
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
-
-# ─── WebSockets — Channel Layer Redis ────────────────────────────────────────
+# --- WebSockets - Channel Layer en memoire ----------------------------------
+# Suffisant pour 1 serveur. Ajouter Redis si scale-out necessaire.
 
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [os.getenv('REDIS_URL', 'redis://redis:6379/1')],
-            'capacity': 1500,
-            'expiry': 10,
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     }
 }
 
-# ─── CORS ─────────────────────────────────────────────────────────────────────
+# --- CORS --------------------------------------------------------------------
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = os.getenv(
@@ -70,10 +55,10 @@ CSRF_TRUSTED_ORIGINS = os.getenv(
     'https://api.ritoto-campus.com,https://ritoto-campus.com'
 ).split(',')
 
-# ─── Headers de sécurité HTTPS ────────────────────────────────────────────────
+# --- Headers de securite HTTPS -----------------------------------------------
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = False       # Nginx gère la redirection HTTP→HTTPS
+SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 31536000
@@ -82,14 +67,14 @@ SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# ─── Logs production ──────────────────────────────────────────────────────────
+# --- Logs production ---------------------------------------------------------
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '[{levelname}] {asctime} {module} — {message}',
+            'format': '[{levelname}] {asctime} {module} - {message}',
             'style': '{',
         },
     },
@@ -104,15 +89,7 @@ LOGGING = {
         'level': 'WARNING',
     },
     'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'apps': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
+        'django': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+        'apps':   {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
     },
 }
