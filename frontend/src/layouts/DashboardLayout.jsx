@@ -135,7 +135,7 @@ export default function DashboardLayout({ children }) {
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="font-bold text-gray-900 leading-none text-sm truncate">Ritoto Express</p>
+              <p className="font-bold text-gray-900 leading-none text-sm truncate">Ritoto Campus</p>
               <p className="text-xs text-gray-400 mt-0.5 truncate">{roleLabels[user?.role]}</p>
             </div>
           )}

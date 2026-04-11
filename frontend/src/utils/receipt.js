@@ -72,7 +72,7 @@ export function printReceipt(order) {
 </head>
 <body>
   <div class="brand">
-    <div class="brand-name">Ritoto Express</div>
+    <div class="brand-name">Ritoto Campus</div>
     <div class="brand-sub">Livraison express sur le campus</div>
   </div>
 
@@ -135,7 +135,7 @@ export function printReceipt(order) {
   <div class="footer">
     Merci de votre commande !<br>
     Conservez ce reçu comme preuve de paiement.<br>
-    <strong>Ritoto Express</strong> — Campus
+    <strong>Ritoto Campus</strong> — Campus
   </div>
 
   <script>window.onload=function(){setTimeout(function(){window.print()},300)}</script>

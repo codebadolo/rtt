@@ -37,7 +37,7 @@ export default function StudentDashboard() {
               {greeting}, {user?.prenom ?? user?.nom_complet?.split(' ')[0]} ! 👋
             </h1>
             <p className="text-gray-500 mt-1">
-              Bienvenue sur Ritoto Express — votre service de livraison universitaire.
+              Bienvenue sur Ritoto Campus — votre service de livraison universitaire.
             </p>
           </div>
           <Link

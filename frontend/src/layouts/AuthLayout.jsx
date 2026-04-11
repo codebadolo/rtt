@@ -24,7 +24,7 @@ export default function AuthLayout({ children }) {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          © {new Date().getFullYear()} Ritoto Express. Tous droits réservés.
+          © {new Date().getFullYear()} Ritoto Campus. Tous droits réservés.
         </p>
       </div>
     </div>

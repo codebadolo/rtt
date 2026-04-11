@@ -247,7 +247,7 @@ export default function Landing() {
             Prêt à commander ?
           </h2>
           <p className="text-orange-100 mb-8 text-lg">
-            Rejoignez des centaines d'étudiants qui utilisent Ritoto Express chaque jour.
+            Rejoignez des centaines d'étudiants qui utilisent Ritoto Campus chaque jour.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
@@ -272,10 +272,10 @@ export default function Landing() {
           <div className="w-6 h-6 bg-orange-500 rounded-md flex items-center justify-center">
             <ShoppingBag className="w-3 h-3 text-white" />
           </div>
-          <span className="text-white font-bold">Ritoto Express</span>
+          <span className="text-white font-bold">Ritoto Campus</span>
         </div>
         <p className="text-gray-500 text-sm">
-          © {new Date().getFullYear()} Ritoto Express — Service de livraison universitaire
+          © {new Date().getFullYear()} Ritoto Campus — Service de livraison universitaire
         </p>
       </footer>
     </div>

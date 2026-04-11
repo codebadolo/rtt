@@ -45,3 +45,7 @@
   ▎ Astuce : ajoute alias compose="docker compose -f /var/www/ritoto/docker-compose.prod.yml" dans ton ~/.bashrc pour raccourcir toutes ces commandes.                         
   
 ✻ Cogitated for 30s           
+
+614984022427-5i95jslfru8jkmb4tqm2nncosi4rueba.apps.googleusercontent.com 
+VITE_GOOGLE_CLIENT_ID="614984022427-5i95jslfru8jkmb4tqm2nncosi4rueba.apps.googleusercontent.com" \                                                                                                         
+    bash ~/update.sh front 

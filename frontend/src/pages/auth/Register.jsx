@@ -128,7 +128,7 @@ export default function Register() {
         <div className="w-full max-w-lg">
           <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
             <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Créer un compte</h1>
-            <p className="text-gray-400 text-sm mb-6">Rejoignez Ritoto Express gratuitement</p>
+            <p className="text-gray-400 text-sm mb-6">Rejoignez Ritoto Campus gratuitement</p>
 
             {/* Bouton Google */}
             {!googleProfile && (
