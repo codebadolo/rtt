@@ -1,0 +1,183 @@
+[
+  {
+    "model": "administration.configuration",
+    "pk": 1,
+    "fields": {
+      "taux_service": "10.00",
+      "numero_orange": "",
+      "numero_moov": ""
+    }
+  },
+  {
+    "model": "administration.secteur",
+    "pk": 1,
+    "fields": {
+      "nom": "Campus Principal",
+      "code": "CAMPUS",
+      "description": "Secteur principal du campus",
+      "adresse": "Campus Ritoto",
+      "latitude": null,
+      "longitude": null,
+      "chefs": []
+    }
+  },
+  {
+    "model": "administration.salle",
+    "pk": 1,
+    "fields": {
+      "secteur": 1,
+      "nom": "Salle A1",
+      "code": "A1",
+      "capacite": 50,
+      "livreur_1": null,
+      "livreur_2": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.salle",
+    "pk": 2,
+    "fields": {
+      "secteur": 1,
+      "nom": "Salle A2",
+      "code": "A2",
+      "capacite": 50,
+      "livreur_1": null,
+      "livreur_2": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.salle",
+    "pk": 3,
+    "fields": {
+      "secteur": 1,
+      "nom": "Salle B1",
+      "code": "B1",
+      "capacite": 40,
+      "livreur_1": null,
+      "livreur_2": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.produit",
+    "pk": 1,
+    "fields": {
+      "nom": "Sandwich Poulet",
+      "description": "Sandwich au poulet grille",
+      "categorie": "SANDWICH",
+      "prix_base": "1000.00",
+      "image": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.produit",
+    "pk": 2,
+    "fields": {
+      "nom": "Sandwich Thon",
+      "description": "Sandwich au thon",
+      "categorie": "SANDWICH",
+      "prix_base": "900.00",
+      "image": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.produit",
+    "pk": 3,
+    "fields": {
+      "nom": "Eau minerale 50cl",
+      "description": "Bouteille d'eau 50cl",
+      "categorie": "BOISSON",
+      "prix_base": "300.00",
+      "image": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.produit",
+    "pk": 4,
+    "fields": {
+      "nom": "Jus de fruit",
+      "description": "Jus de fruit naturel",
+      "categorie": "BOISSON",
+      "prix_base": "500.00",
+      "image": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.produit",
+    "pk": 5,
+    "fields": {
+      "nom": "Croissant",
+      "description": "Croissant au beurre",
+      "categorie": "PATISSERIE",
+      "prix_base": "500.00",
+      "image": null,
+      "est_actif": true
+    }
+  },
+  {
+    "model": "administration.horairecommande",
+    "pk": 1,
+    "fields": {
+      "secteur": 1,
+      "jour_semaine": 1,
+      "heure_debut": "07:00:00",
+      "heure_fin": "14:00:00",
+      "est_actif": true,
+      "limite_commandes": null
+    }
+  },
+  {
+    "model": "administration.horairecommande",
+    "pk": 2,
+    "fields": {
+      "secteur": 1,
+      "jour_semaine": 2,
+      "heure_debut": "07:00:00",
+      "heure_fin": "14:00:00",
+      "est_actif": true,
+      "limite_commandes": null
+    }
+  },
+  {
+    "model": "administration.horairecommande",
+    "pk": 3,
+    "fields": {
+      "secteur": 1,
+      "jour_semaine": 3,
+      "heure_debut": "07:00:00",
+      "heure_fin": "14:00:00",
+      "est_actif": true,
+      "limite_commandes": null
+    }
+  },
+  {
+    "model": "administration.horairecommande",
+    "pk": 4,
+    "fields": {
+      "secteur": 1,
+      "jour_semaine": 4,
+      "heure_debut": "07:00:00",
+      "heure_fin": "14:00:00",
+      "est_actif": true,
+      "limite_commandes": null
+    }
+  },
+  {
+    "model": "administration.horairecommande",
+    "pk": 5,
+    "fields": {
+      "secteur": 1,
+      "jour_semaine": 5,
+      "heure_debut": "07:00:00",
+      "heure_fin": "14:00:00",
+      "est_actif": true,
+      "limite_commandes": null
+    }
+  }
+]
