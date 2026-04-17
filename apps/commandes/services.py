@@ -4,6 +4,7 @@ Service d'intégration avec l'API Senfenico
 import hashlib
 import base64
 import logging
+import re
 import requests
 from django.conf import settings
 
@@ -27,6 +28,11 @@ def _headers():
     }
 
 
+def _nettoyer_telephone(telephone: str) -> str:
+    """Supprime tout caractère non numérique."""
+    return re.sub(r'[^\d]', '', telephone)
+
+
 def creer_charge(montant: int, telephone: str, methode_paiement: str) -> dict:
     """
     Crée une charge Senfenico (paiement sans redirection).
@@ -36,12 +42,14 @@ def creer_charge(montant: int, telephone: str, methode_paiement: str) -> dict:
     if not provider:
         raise ValueError(f"Méthode de paiement non supportée par Senfenico : {methode_paiement}")
 
+    telephone_clean = _nettoyer_telephone(telephone)
+
     payload = {
         "amount": str(montant),
         "currency": "XOF",
         "payment_method": "mobile_money",
         "payment_method_details": {
-            "phone": telephone,
+            "phone": telephone_clean,
             "provider": provider,
         },
     }
@@ -59,7 +67,8 @@ def creer_charge(montant: int, telephone: str, methode_paiement: str) -> dict:
             raise ValueError(body.get("message", "Erreur Senfenico inconnue"))
         return body["data"]
     except requests.RequestException as e:
-        logger.error("Senfenico creer_charge error: %s", e)
+        body_text = getattr(getattr(e, 'response', None), 'text', '')
+        logger.error("Senfenico creer_charge error: %s | Response: %s", e, body_text)
         raise
 
 
@@ -114,6 +123,7 @@ def fetch_balance() -> dict:
 def creer_settlement(montant: int) -> dict:
     """
     Déclenche un settlement vers le compte configuré dans le dashboard Senfenico.
+    La destination est définie dans Business Settings Senfenico, pas via l'API.
     Retourne le dict `data` de la réponse.
     """
     try:

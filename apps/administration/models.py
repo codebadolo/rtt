@@ -358,6 +358,28 @@ class Configuration(models.Model):
         help_text="Pourcentage appliqué sur le sous-total produits (ex: 10 = 10%)"
     )
 
+    # Horaires d'ouverture globaux
+    commandes_actives = models.BooleanField(
+        'Commandes actives',
+        default=True,
+        help_text="Désactiver pour bloquer toutes les commandes (maintenance, fermeture exceptionnelle)"
+    )
+    heure_ouverture = models.TimeField(
+        'Heure d\'ouverture',
+        null=True, blank=True,
+        help_text="Heure à partir de laquelle les commandes sont acceptées (ex: 07:00)"
+    )
+    heure_fermeture = models.TimeField(
+        'Heure de fermeture',
+        null=True, blank=True,
+        help_text="Heure à partir de laquelle les commandes sont bloquées (ex: 17:00)"
+    )
+    horaires_actifs = models.BooleanField(
+        'Horaires actifs',
+        default=True,
+        help_text="Décochez pour ignorer les horaires d'ouverture sans les supprimer"
+    )
+
     # Numéros admin pour recevoir les settlements Senfenico
     numero_orange = models.CharField(
         'Numéro Orange Money', max_length=20, blank=True, default='',
@@ -386,6 +408,20 @@ class Configuration(models.Model):
         """Retourne la configuration active (singleton pk=1)."""
         config, _ = cls.objects.get_or_create(pk=1)
         return config
+
+    def commandes_sont_ouvertes(self):
+        """Retourne (bool, message) selon les horaires et le flag commandes_actives."""
+        if not self.commandes_actives:
+            return False, "Les commandes sont temporairement désactivées."
+        if self.horaires_actifs and self.heure_ouverture and self.heure_fermeture:
+            heure_actuelle = timezone.localtime(timezone.now()).time()
+            if not (self.heure_ouverture <= heure_actuelle <= self.heure_fermeture):
+                return False, (
+                    f"Les commandes sont acceptées entre "
+                    f"{self.heure_ouverture.strftime('%H:%M')} et "
+                    f"{self.heure_fermeture.strftime('%H:%M')}."
+                )
+        return True, ""
 
     def calculer_frais(self, total_ht, methode_paiement=None):
         """

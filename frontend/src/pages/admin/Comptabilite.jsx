@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { comptabiliteApi, configApi, soldeApi, settlementsApi } from '../../api/admin'
+import { comptabiliteApi, soldeApi, settlementsApi } from '../../api/admin'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const PERIODES = [
@@ -23,11 +23,6 @@ const PERIODES = [
   { value: 'all',   label: 'Tout' },
 ]
 
-const COMPTES = [
-  { value: 'orange', label: 'Orange Money', color: 'bg-orange-500' },
-  { value: 'moov',   label: 'Moov Money',   color: 'bg-blue-500' },
-  { value: 'sank',   label: 'Sank Money',   color: 'bg-green-600' },
-]
 
 const COLORS_SECTEUR = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b']
 const COLORS_PIE = ['#3b82f6', '#10b981']
@@ -64,7 +59,7 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 // ─── Composant Settlement ─────────────────────────────────────────────────────
-function SettlementsPanel({ comptes }) {
+function SettlementsPanel() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState({ montant: '', compte: 'orange', note: '' })
 
@@ -100,7 +95,6 @@ function SettlementsPanel({ comptes }) {
 
   const solde = soldeData?.solde?.collection_balances
   const settlements = settData?.settlements ?? []
-  const totaux = settData?.totaux_par_compte ?? {}
 
   const statutColor = {
     processing: 'bg-amber-100 text-amber-700',
@@ -137,41 +131,18 @@ function SettlementsPanel({ comptes }) {
           <p className="text-sm text-gray-400">Impossible de récupérer le solde Senfenico.</p>
         )}
 
-        {/* Numéros admin configurés */}
-        {comptes && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-500 font-medium mb-2">Comptes destinataires</p>
-            <div className="flex flex-wrap gap-2">
-              {comptes.orange && (
-                <span className="text-xs bg-orange-100 text-orange-700 px-3 py-1 rounded-full font-medium">
-                  Orange : {comptes.orange}
-                </span>
-              )}
-              {comptes.moov && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-                  Moov : {comptes.moov}
-                </span>
-              )}
-              {comptes.sank && (
-                <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-                  Sank : {comptes.sank}
-                </span>
-              )}
-              {!comptes.orange && !comptes.moov && !comptes.sank && (
-                <span className="text-xs text-gray-400">Configurer dans Configuration → Comptes admin</span>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Formulaire settlement */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
         <h2 className="font-semibold text-gray-800 flex items-center gap-2 mb-4">
           <ArrowDownToLine className="h-5 w-5 text-primary-500" />
-          Déclencher un virement (Settlement)
+          Déclencher un virement
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 mb-4 text-xs text-blue-700">
+          Le virement est envoyé vers le compte configuré dans votre dashboard Senfenico (Business Settings → Payment Account).
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Montant (FCFA)</label>
             <input
@@ -184,22 +155,10 @@ function SettlementsPanel({ comptes }) {
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-gray-600 mb-1 block">Compte destinataire</label>
-            <select
-              value={form.compte}
-              onChange={(e) => setForm((f) => ({ ...f, compte: e.target.value }))}
-              className="input w-full"
-            >
-              {COMPTES.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
             <label className="text-xs font-medium text-gray-600 mb-1 block">Note (optionnel)</label>
             <input
               type="text"
-              placeholder="ex: Virement du soir"
+              placeholder="ex: Recettes du 17 avril"
               value={form.note}
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               className="input w-full"
@@ -207,28 +166,20 @@ function SettlementsPanel({ comptes }) {
           </div>
         </div>
         <button
-          onClick={() => createMut.mutate({ montant: parseInt(form.montant), compte: form.compte, note: form.note })}
+          onClick={() => createMut.mutate({ montant: parseInt(form.montant), compte: 'orange', note: form.note })}
           disabled={!form.montant || createMut.isPending}
           className="btn-primary mt-3 flex items-center gap-2 disabled:opacity-50"
         >
           {createMut.isPending ? <LoadingSpinner size="sm" /> : <ArrowDownToLine className="h-4 w-4" />}
           Virer maintenant
         </button>
-        <p className="text-xs text-gray-400 mt-2">
-          Frais Senfenico : 0% — Le compte doit être configuré dans le dashboard Senfenico.
-        </p>
       </div>
 
-      {/* Totaux par compte */}
-      {Object.keys(totaux).length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          {COMPTES.map((c) => (
-            <div key={c.value} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm text-center">
-              <div className={`inline-block w-3 h-3 rounded-full ${c.color} mb-2`} />
-              <p className="text-lg font-bold text-gray-900">{fmt(totaux[c.value])} F</p>
-              <p className="text-xs text-gray-500">{c.label}</p>
-            </div>
-          ))}
+      {/* Total viré */}
+      {settData?.total_settle > 0 && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm text-center">
+          <p className="text-lg font-bold text-gray-900">{fmt(settData.total_settle)} F</p>
+          <p className="text-xs text-gray-500">Total viré (virements réussis)</p>
         </div>
       )}
 
@@ -247,7 +198,6 @@ function SettlementsPanel({ comptes }) {
               <thead>
                 <tr className="bg-gray-50">
                   <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Référence</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Compte</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Montant</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Note</th>
@@ -259,14 +209,6 @@ function SettlementsPanel({ comptes }) {
                 {settlements.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 font-mono text-xs text-gray-500">{s.reference_senfenico.slice(0, 20)}…</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium
-                        ${s.compte === 'orange' ? 'bg-orange-100 text-orange-700' :
-                          s.compte === 'moov'   ? 'bg-blue-100 text-blue-700' :
-                                                  'bg-green-100 text-green-700'}`}>
-                        {s.compte_display}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-800">{fmt(s.montant)} F</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statutColor[s.statut] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -275,7 +217,7 @@ function SettlementsPanel({ comptes }) {
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{s.note || '—'}</td>
                     <td className="px-4 py-3 text-gray-400 text-xs">
-                      {new Date(s.date_creation).toLocaleDateString('fr-FR')}
+                      {new Date(s.date_creation).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
                     <td className="px-4 py-3">
                       <button
@@ -308,11 +250,6 @@ export default function AdminComptabilite() {
     queryFn: () => comptabiliteApi.get(periode),
   })
 
-  const { data: configData } = useQuery({
-    queryKey: ['configuration'],
-    queryFn: configApi.get,
-  })
-
   const r = data?.resume ?? {}
   const evolution = data?.evolution ?? []
   const parSecteur = data?.par_secteur ?? []
@@ -331,10 +268,6 @@ export default function AdminComptabilite() {
     'CA brut': s.ca_brut,
     'Frais service': s.frais_service,
   }))
-
-  const comptes = configData
-    ? { orange: configData.numero_orange, moov: configData.numero_moov, sank: configData.numero_sank }
-    : null
 
   const TABS = [
     { id: 'stats',      label: 'Vue globale',   icon: BarChart3 },
@@ -667,7 +600,7 @@ export default function AdminComptabilite() {
         )}
 
         {/* Tab : Virements */}
-        {tab === 'settlements' && <SettlementsPanel comptes={comptes} />}
+        {tab === 'settlements' && <SettlementsPanel />}
       </div>
     </DashboardLayout>
   )

@@ -358,6 +358,10 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         model = Configuration
         fields = [
             'taux_service',
+            'commandes_actives',
+            'heure_ouverture',
+            'heure_fermeture',
+            'horaires_actifs',
             'numero_orange',
             'numero_moov',
             'numero_sank',

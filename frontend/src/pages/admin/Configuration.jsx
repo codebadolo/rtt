@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Settings, Percent, Save } from 'lucide-react'
+import { Settings, Percent, Save, Clock } from 'lucide-react'
 import { useEffect } from 'react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
@@ -25,7 +25,13 @@ export default function AdminConfiguration() {
 
   useEffect(() => {
     if (config) {
-      reset({ taux_service: config.taux_service })
+      reset({
+        taux_service: config.taux_service,
+        commandes_actives: config.commandes_actives,
+        heure_ouverture: config.heure_ouverture ?? '',
+        heure_fermeture: config.heure_fermeture ?? '',
+        horaires_actifs: config.horaires_actifs ?? true,
+      })
     }
   }, [config, reset])
 
@@ -39,6 +45,7 @@ export default function AdminConfiguration() {
   })
 
   const taux = parseFloat(watch('taux_service') || 0)
+  const horairesActifs = watch('horaires_actifs')
   const exemple = 1000
   const fraisService = Math.round(exemple * taux / 100)
 
@@ -112,6 +119,74 @@ export default function AdminConfiguration() {
                   {errors.taux_service && (
                     <p className="form-error">{errors.taux_service.message}</p>
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Horaires d'ouverture */}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 text-primary-600">
+              <Clock className="h-5 w-5" />
+              <h2 className="font-semibold text-base">Horaires d'ouverture</h2>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Accepter les commandes</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Désactivez pour bloquer immédiatement toutes les commandes
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    {...register('commandes_actives')}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Appliquer les horaires</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Désactivez pour ignorer les horaires sans les supprimer
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    {...register('horaires_actifs')}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+                </label>
+              </div>
+
+              <p className="text-sm text-gray-500">
+                Définissez une plage horaire pendant laquelle les commandes sont acceptées.
+                En dehors de cette plage, les commandes seront automatiquement bloquées.
+                Laissez les deux champs vides pour ne pas appliquer de restriction horaire.
+              </p>
+
+              <div className={`grid grid-cols-2 gap-4 transition-opacity ${horairesActifs ? '' : 'opacity-40 pointer-events-none'}`}>
+                <div>
+                  <label className="label">Heure d'ouverture</label>
+                  <input
+                    type="time"
+                    className="input"
+                    {...register('heure_ouverture')}
+                  />
+                </div>
+                <div>
+                  <label className="label">Heure de fermeture</label>
+                  <input
+                    type="time"
+                    className="input"
+                    {...register('heure_fermeture')}
+                  />
                 </div>
               </div>
             </div>

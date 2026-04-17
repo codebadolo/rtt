@@ -142,6 +142,12 @@ class CommandeViewSet(viewsets.ModelViewSet):
         if commande.etudiant != request.user:
             return Response({'error': 'Interdit'}, status=status.HTTP_403_FORBIDDEN)
 
+        if int(commande.total_ttc) < 100:
+            return Response(
+                {'error': f'Le montant total ({int(commande.total_ttc)} FCFA) est inférieur au minimum requis de 100 FCFA.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Éviter les doubles charges
         if hasattr(commande, 'paiement_senfenico'):
             p = commande.paiement_senfenico
@@ -219,7 +225,15 @@ class CommandeViewSet(viewsets.ModelViewSet):
         paiement.save(update_fields=['statut'])
 
         if charge_statut == 'success':
-            commande.valider(request.user, reference_paiement=paiement.charge_reference)
+            if commande.statut == StatutCommande.EN_ATTENTE:
+                try:
+                    commande.valider(None, reference_paiement=paiement.charge_reference)
+                except Exception as e:
+                    logger.error("Erreur validation commande %s après OTP success: %s", commande.pk, e)
+                    return Response(
+                        {'error': 'Paiement reçu mais erreur lors de la validation. Contactez le support.'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    )
             return Response({'message': 'Paiement réussi ! Commande validée.', 'statut': 'success'})
 
         return Response(

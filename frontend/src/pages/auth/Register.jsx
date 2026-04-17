@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { ShoppingBag, Mail, Lock, User, Phone, CreditCard, Eye, EyeOff, ArrowLeft } from 'lucide-react'
+import { ShoppingBag, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGoogleLogin } from '@react-oauth/google'
 import useAuthStore from '../../stores/authStore'
@@ -258,22 +258,6 @@ export default function Register() {
                 {errors.telephone && <p className="text-red-500 text-xs mt-1">{errors.telephone.message}</p>}
               </div>
 
-              {/* Matricule */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Matricule étudiant</label>
-                <div className="relative">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    placeholder="ETU-2024-XXXXX"
-                    className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
-                      errors.matricule ? 'border-red-400' : 'border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
-                    }`}
-                    {...register('matricule', { required: 'Matricule requis' })}
-                  />
-                </div>
-                {errors.matricule && <p className="text-red-500 text-xs mt-1">{errors.matricule.message}</p>}
-              </div>
-
               {/* Password — masqué si Google */}
               {!googleProfile && (
                 <div>
@@ -289,6 +273,14 @@ export default function Register() {
                       {...register('password', {
                         required: !googleProfile ? 'Mot de passe requis' : false,
                         minLength: { value: 8, message: 'Minimum 8 caractères' },
+                        validate: (v) => {
+                          if (!v) return true
+                          if (!/[a-zA-Z]/.test(v)) return 'Doit contenir au moins une lettre'
+                          if (!/\d/.test(v)) return 'Doit contenir au moins un chiffre'
+                          if (!/[!@#$%^&*()\-_=+[\]{};:'",.<>?/\\|`~]/.test(v))
+                            return 'Doit contenir au moins un caractère spécial'
+                          return true
+                        },
                       })}
                     />
                     <button

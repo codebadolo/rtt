@@ -48,36 +48,55 @@ class Command(BaseCommand):
         # ─── SALLES ────────────────────────────────────────────────────
         salles_data = []
 
-        # Secteur 1 — Amphis
-        for code in ['R0', 'R1', 'R2', 'R4']:
+        # Secteur 1 — Amphis (RDC + Étages)
+        for code in ['R0', 'R1', 'R2', 'R3', 'R4', 'R5']:
             salles_data.append({
                 'code': f'AMPHI-{code}', 'nom': f'Amphi {code}',
                 'batiment': 'Bâtiment Principal', 'etage': 'RDC', 'secteur': sec1,
             })
+        # Salles de conférence / TP du bâtiment principal
+        for code in ['A', 'B', 'C']:
+            salles_data.append({
+                'code': f'CONF-{code}', 'nom': f'Salle de conférence {code}',
+                'batiment': 'Bâtiment Principal', 'etage': 'Étage 1', 'secteur': sec1,
+            })
 
-        # Secteur 2 — Salles 01-13
-        for i in range(1, 14):
+        # Secteur 2 — Salles 01-15 (Étage 1)
+        for i in range(1, 16):
             salles_data.append({
                 'code': f'S{i:02d}', 'nom': f'Salle {i:02d}',
                 'batiment': 'Bâtiment Pédagogique', 'etage': 'Étage 1', 'secteur': sec2,
             })
 
-        # Secteur 3 — Salles 14-27 + Tour du Savoir
-        for i in range(14, 28):
+        # Secteur 3 — Salles 16-35 (Étages 2 et 3) + Tour du Savoir
+        for i in range(16, 31):
+            etage = 'Étage 2' if i <= 23 else 'Étage 3'
             salles_data.append({
                 'code': f'S{i:02d}', 'nom': f'Salle {i:02d}',
-                'batiment': 'Bâtiment Pédagogique', 'etage': 'Étage 2', 'secteur': sec3,
+                'batiment': 'Bâtiment Pédagogique', 'etage': etage, 'secteur': sec3,
             })
-        salles_data.append({'code': 'TOUR-SAVOIR-1', 'nom': 'Salle Tour du Savoir 1', 'batiment': 'Tour du Savoir', 'etage': 'RDC',     'secteur': sec3})
-        salles_data.append({'code': 'TOUR-SAVOIR-2', 'nom': 'Salle Tour du Savoir 2', 'batiment': 'Tour du Savoir', 'etage': 'Étage 1', 'secteur': sec3})
+        # Tour du Savoir
+        for j in range(1, 5):
+            salles_data.append({
+                'code': f'TOUR-SAVOIR-{j}', 'nom': f'Salle Tour du Savoir {j}',
+                'batiment': 'Tour du Savoir', 'etage': f'Étage {j - 1}' if j > 1 else 'RDC',
+                'secteur': sec3,
+            })
         salles_data.append({'code': 'PR-TOGUYENI',   'nom': 'Salle Pr. Toguyéni',     'batiment': 'Bâtiment Admin', 'etage': 'Étage 1', 'secteur': sec3})
+        salles_data.append({'code': 'SALLE-CONSEIL',  'nom': 'Salle du Conseil',       'batiment': 'Bâtiment Admin', 'etage': 'Étage 2', 'secteur': sec3})
 
-        # Secteur 4 — Laboratoires
-        salles_data.append({'code': 'LAB-A-01', 'nom': 'LAB A - Room 01', 'batiment': 'Bâtiment Lab', 'etage': 'RDC', 'secteur': sec4})
-        for j in range(1, 4):
-            salles_data.append({'code': f'LAB-B-0{j}', 'nom': f'LAB B - Room 0{j}', 'batiment': 'Bâtiment Lab', 'etage': 'RDC', 'secteur': sec4})
-        for j in range(3, 9):
-            salles_data.append({'code': f'ROOM-0{j}', 'nom': f'Room 0{j}', 'batiment': 'Bâtiment Lab', 'etage': 'Étage 1', 'secteur': sec4})
+        # Secteur 4 — Laboratoires et salles TP
+        # LAB A — salles 01-04
+        for j in range(1, 5):
+            salles_data.append({'code': f'LAB-A-{j:02d}', 'nom': f'LAB A - Salle {j:02d}', 'batiment': 'Bâtiment Lab', 'etage': 'RDC', 'secteur': sec4})
+        # LAB B — salles 01-04
+        for j in range(1, 5):
+            salles_data.append({'code': f'LAB-B-{j:02d}', 'nom': f'LAB B - Salle {j:02d}', 'batiment': 'Bâtiment Lab', 'etage': 'RDC', 'secteur': sec4})
+        # Salles TP Réseau / Systèmes
+        for j in range(1, 7):
+            salles_data.append({'code': f'TP-{j:02d}', 'nom': f'Salle TP {j:02d}', 'batiment': 'Bâtiment Lab', 'etage': 'Étage 1', 'secteur': sec4})
+        # Salle Projet et Recherche
+        salles_data.append({'code': 'SALLE-PROJET', 'nom': 'Salle Projet & Recherche', 'batiment': 'Bâtiment Lab', 'etage': 'Étage 2', 'secteur': sec4})
 
         created_salles = 0
         for s in salles_data:

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -10,16 +11,19 @@ import {
   Package,
   Phone,
   Printer,
+  Smartphone,
   XCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ordersApi } from '../../api/orders'
 import Badge from '../../components/Badge'
 import Breadcrumb from '../../components/Breadcrumb'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import SenfenicoOTPModal from '../../components/SenfenicoOTPModal'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { printReceipt } from '../../utils/receipt'
+import { formatDateTime } from '../../utils/dates'
 
 const METHODE_CFG = {
   ORANGE: { label: 'Orange Money', emoji: '🟠', color: 'bg-orange-100 text-orange-700' },
@@ -53,7 +57,9 @@ function InfoRow({ icon: Icon, label, value, mono = false }) {
 
 export default function StudentOrderDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [showOtpModal, setShowOtpModal] = useState(false)
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -96,6 +102,7 @@ export default function StudentOrderDetail() {
   const canCancel   = ['BROUILLON', 'EN_ATTENTE'].includes(order.statut)
   const canPrint    = ['VALIDEE', 'PRETE', 'DISTRIBUEE'].includes(order.statut)
   const paiement    = order.paiement_senfenico
+  const canSaisirOtp = order.statut === 'EN_ATTENTE' && paiement?.statut === 'send_otp'
   const methode     = METHODE_CFG[order.methode_paiement]
   const totalHT      = parseFloat(order.total_ht     || 0)
   const fraisService = parseFloat(order.frais_service || 0)
@@ -103,6 +110,18 @@ export default function StudentOrderDetail() {
 
   return (
     <DashboardLayout>
+      {showOtpModal && paiement && (
+        <SenfenicoOTPModal
+          commandeId={order.id}
+          chargeInfo={paiement}
+          onSuccess={() => {
+            setShowOtpModal(false)
+            queryClient.invalidateQueries({ queryKey: ['order', id] })
+            navigate(`/etudiant/commandes/${order.id}`)
+          }}
+          onClose={() => setShowOtpModal(false)}
+        />
+      )}
       <div className="max-w-2xl mx-auto space-y-6">
         <Breadcrumb items={[{ label: 'Mes commandes', to: '/etudiant/commandes' }, { label: order.numero_commande }]} />
 
@@ -117,11 +136,7 @@ export default function StudentOrderDetail() {
               <Badge status={order.statut} />
             </div>
             <p className="text-sm text-gray-500 mt-0.5">
-              Passée le{' '}
-              {new Date(order.date_creation).toLocaleDateString('fr-FR', {
-                day: 'numeric', month: 'long', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
-              })}
+              Passée le {formatDateTime(order.date_creation)}
             </p>
           </div>
           {/* Print button — visible seulement si commande validée/distribuée */}
@@ -261,6 +276,15 @@ export default function StudentOrderDetail() {
 
         {/* Actions */}
         <div className="flex gap-3 flex-wrap">
+          {canSaisirOtp && (
+            <button
+              onClick={() => setShowOtpModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <Smartphone className="h-4 w-4" />
+              Saisir le code OTP
+            </button>
+          )}
           {canPrint && (
             <button
               onClick={() => printReceipt(order)}

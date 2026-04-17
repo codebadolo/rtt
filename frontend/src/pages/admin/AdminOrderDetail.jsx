@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { formatDate, formatTime, formatDateTime } from '../../utils/dates'
 import {
   AlertCircle,
   ArrowLeft,
@@ -197,8 +198,8 @@ function HistoryLine({ entry }) {
         )}
       </div>
       <div className="text-xs text-gray-400 flex-shrink-0 text-right">
-        <p>{date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
-        <p>{date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+        <p>{formatDate(date)}</p>
+        <p>{formatTime(date)}</p>
       </div>
     </div>
   )
@@ -304,10 +305,7 @@ export default function AdminOrderDetail() {
                 <Badge status={order.statut} />
               </div>
               <p className="text-sm text-gray-500 mt-1">
-                Créée le {new Date(order.date_creation).toLocaleDateString('fr-FR', {
-                  day: 'numeric', month: 'long', year: 'numeric',
-                  hour: '2-digit', minute: '2-digit',
-                })}
+                Créée le {formatDateTime(order.date_creation)}
               </p>
             </div>
             <div className="text-right flex-shrink-0 space-y-2">
@@ -476,10 +474,7 @@ export default function AdminOrderDetail() {
                         </p>
                       )}
                       <p className="text-xs text-gray-400">
-                        Initiée le {new Date(paiement.date_creation).toLocaleDateString('fr-FR', {
-                          day: '2-digit', month: 'short',
-                          hour: '2-digit', minute: '2-digit',
-                        })}
+                        Initiée le {formatDateTime(paiement.date_creation)}
                       </p>
                     </div>
                   </div>

@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, UserCheck, GraduationCap, Truck, ShieldCheck,
-  UserPlus, ToggleLeft, ToggleRight, Trash2,
+  UserPlus, ToggleLeft, ToggleRight, Trash2, ShieldAlert,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -124,6 +124,56 @@ function CreateUserModal({ isOpen, onClose }) {
   )
 }
 
+/* ── Change Role Modal ── */
+function ChangeRoleModal({ user: targetUser, isOpen, onClose }) {
+  const qc = useQueryClient()
+  const { register, handleSubmit, reset } = useForm({
+    defaultValues: { role: targetUser?.role ?? 'ETUDIANT' },
+  })
+
+  const mut = useMutation({
+    mutationFn: ({ role }) => usersApi.changeRole(targetUser.id, role),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      qc.invalidateQueries({ queryKey: ['users-all'] })
+      toast.success('Rôle modifié')
+      reset()
+      onClose()
+    },
+    onError: (e) => toast.error(e.response?.data?.error ?? 'Erreur'),
+  })
+
+  if (!targetUser) return null
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Changer le rôle">
+      <form onSubmit={handleSubmit((d) => mut.mutate(d))} className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Modifier le rôle de <strong>{targetUser.prenom} {targetUser.nom}</strong>.
+          Cette action est irréversible sans une nouvelle modification.
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau rôle *</label>
+          <select
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400"
+            {...register('role')}
+          >
+            <option value="ETUDIANT">Étudiant</option>
+            <option value="CHEF_SECTEUR">Chef de secteur</option>
+            <option value="LIVREUR">Livreur</option>
+            <option value="ADMIN">Administrateur</option>
+          </select>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Annuler</button>
+          <button type="submit" disabled={mut.isPending} className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-60">
+            {mut.isPending ? 'Modification…' : 'Confirmer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 /* ── Role filter pills ── */
 const ROLE_FILTERS = [
   { value: '', label: 'Tous' },
@@ -139,6 +189,7 @@ export default function AdminUsers() {
   const [role, setRole] = useState('')
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [roleTarget, setRoleTarget] = useState(null)
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -227,6 +278,13 @@ export default function AdminUsers() {
       render: (_, row) => (
         <div className="flex items-center justify-end gap-1">
           <button
+            onClick={(e) => { e.stopPropagation(); setRoleTarget(row) }}
+            title="Changer le rôle"
+            className="p-1.5 rounded-lg hover:bg-purple-50 text-gray-300 hover:text-purple-500 transition-colors"
+          >
+            <ShieldAlert className="h-4 w-4" />
+          </button>
+          <button
             onClick={(e) => { e.stopPropagation(); toggleMut.mutate(row.id) }}
             title={row.est_actif ? 'Désactiver' : 'Activer'}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -312,6 +370,11 @@ export default function AdminUsers() {
       </div>
 
       <CreateUserModal isOpen={showCreate} onClose={() => setShowCreate(false)} />
+      <ChangeRoleModal
+        user={roleTarget}
+        isOpen={!!roleTarget}
+        onClose={() => setRoleTarget(null)}
+      />
     </DashboardLayout>
   )
 }

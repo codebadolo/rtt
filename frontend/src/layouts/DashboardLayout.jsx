@@ -43,6 +43,7 @@ const navByRole = {
     { to: '/admin/secteurs', label: 'Secteurs & Salles', icon: MapPin },
     { to: '/admin/commandes', label: 'Commandes', icon: ClipboardList },
     { to: '/admin/paiements', label: 'Paiements', icon: CreditCard },
+    { to: '/admin/plaintes', label: 'Plaintes', icon: AlertTriangle },
     { to: '/admin/comptabilite', label: 'Comptabilité', icon: BarChart3 },
     { to: '/admin/configuration', label: 'Configuration', icon: Settings },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },

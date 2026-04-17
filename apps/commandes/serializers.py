@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Commande, LigneCommande, HistoriqueCommande, PaiementSenfenico, Plainte
-from apps.administration.models import Produit, Variante, Salle
+from apps.administration.models import Produit, Variante, Salle, Configuration
 
 
 class LigneCommandeSerializer(serializers.ModelSerializer):
@@ -44,6 +44,13 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'heure_souhaitee': {'required': True},
         }
+
+    def validate(self, data):
+        config = Configuration.get_active()
+        ouvert, message = config.commandes_sont_ouvertes()
+        if not ouvert:
+            raise serializers.ValidationError({'detail': message})
+        return data
 
     def create(self, validated_data):
         lignes_data = validated_data.pop('lignes')

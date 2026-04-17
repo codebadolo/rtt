@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import useAuthStore from './stores/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoadingSpinner from './components/LoadingSpinner'
+import useInactivityLogout from './hooks/useInactivityLogout'
 
 // Pages
 import Landing from './pages/Landing'
@@ -35,6 +36,7 @@ import AdminPayments from './pages/admin/Payments'
 import AdminSenfenicoTests from './pages/admin/SenfenicoTests'
 import AdminConfiguration from './pages/admin/Configuration'
 import AdminComptabilite from './pages/admin/Comptabilite'
+import AdminComplaints from './pages/admin/Complaints'
 
 // Chef pages
 import ChefDashboard from './pages/chef/Dashboard'
@@ -71,6 +73,8 @@ function RootRedirect() {
 export default function App() {
   const fetchProfile = useAuthStore((s) => s.fetchProfile)
   const isLoading = useAuthStore((s) => s.isLoading)
+
+  useInactivityLogout()
 
   useEffect(() => {
     fetchProfile()
@@ -134,6 +138,7 @@ export default function App() {
               <Route path="/paiements/senfenico" element={<AdminSenfenicoTests />} />
               <Route path="/configuration" element={<AdminConfiguration />} />
               <Route path="/comptabilite" element={<AdminComptabilite />} />
+              <Route path="/plaintes" element={<AdminComplaints />} />
             </Routes>
           </ProtectedRoute>
         }

@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.conf import settings
@@ -7,6 +8,20 @@ from .models import Utilisateur
 import logging
 
 logger = logging.getLogger(__name__)
+
+_SPECIAL = r'[!@#$%^&*()\-_=+\[\]{};:\'",.<>?/\\|`~]'
+
+def valider_complexite_mot_de_passe(password):
+    """Exige au moins une lettre, un chiffre et un caractère spécial."""
+    if not re.search(r'[a-zA-Z]', password):
+        raise serializers.ValidationError('Le mot de passe doit contenir au moins une lettre.')
+    if not re.search(r'\d', password):
+        raise serializers.ValidationError('Le mot de passe doit contenir au moins un chiffre.')
+    if not re.search(_SPECIAL, password):
+        raise serializers.ValidationError(
+            'Le mot de passe doit contenir au moins un caractère spécial (!@#$…).'
+        )
+
 
 # ──────────────────── SERIALIZER INSCRIPTION GOOGLE ────────────────────
 class InscriptionGoogleSerializer(serializers.Serializer):
@@ -52,27 +67,19 @@ class InscriptionGoogleSerializer(serializers.Serializer):
         Validation croisée
         """
         token_info = data['token']
-        
-        # Vérifier que l'email n'existe pas
+
         email = token_info.get('email')
         if Utilisateur.objects.filter(email=email).exists():
             raise serializers.ValidationError({
                 'email': 'Un compte avec cet email existe déjà'
             })
-        
-        # Pour les étudiants, le matricule est requis
-        if data['role'] == 'ETUDIANT' and not data.get('matricule'):
-            raise serializers.ValidationError({
-                'matricule': 'Le matricule est obligatoire pour les étudiants'
-            })
-        
-        # Vérifier le format du téléphone
+
         telephone = data.get('telephone')
         if not telephone.replace('+', '').replace(' ', '').isdigit():
             raise serializers.ValidationError({
                 'telephone': 'Format de téléphone invalide'
             })
-        
+
         return data
     
     def save(self):
@@ -105,7 +112,6 @@ class InscriptionSerializer(serializers.Serializer):
     prenom = serializers.CharField(required=True, max_length=100)
     telephone = serializers.CharField(required=True, max_length=20)
     role = serializers.ChoiceField(choices=['ETUDIANT', 'LIVREUR', 'CHEF_SECTEUR', 'ADMIN'], required=True)
-    matricule = serializers.CharField(required=False, allow_blank=True, max_length=50)
 
     def validate_email(self, value):
         value = value.lower().strip()
@@ -113,9 +119,11 @@ class InscriptionSerializer(serializers.Serializer):
             raise serializers.ValidationError("Un compte avec cet email existe déjà")
         return value
 
+    def validate_password(self, value):
+        valider_complexite_mot_de_passe(value)
+        return value
+
     def validate(self, data):
-        if data['role'] == 'ETUDIANT' and not data.get('matricule'):
-            raise serializers.ValidationError({'matricule': 'Le matricule est obligatoire pour les étudiants'})
         return data
 
     def save(self):
@@ -126,7 +134,6 @@ class InscriptionSerializer(serializers.Serializer):
             prenom=self.validated_data['prenom'],
             telephone=self.validated_data.get('telephone', ''),
             role=self.validated_data['role'],
-            matricule=self.validated_data.get('matricule', ''),
             est_actif=True,
         )
         logger.info(f"Nouvel utilisateur inscrit: {utilisateur.email}")
@@ -227,7 +234,7 @@ class ChangementMotDePasseSerializer(serializers.Serializer):
     """
     ancien_mot_de_passe = serializers.CharField(required=True, write_only=True)
     nouveau_mot_de_passe = serializers.CharField(
-        required=True, 
+        required=True,
         write_only=True,
         min_length=8,
         error_messages={
@@ -235,7 +242,11 @@ class ChangementMotDePasseSerializer(serializers.Serializer):
         }
     )
     confirmation_mot_de_passe = serializers.CharField(required=True, write_only=True)
-    
+
+    def validate_nouveau_mot_de_passe(self, value):
+        valider_complexite_mot_de_passe(value)
+        return value
+
     def validate_ancien_mot_de_passe(self, value):
         user = self.context['request'].user
         if not user.check_password(value):
@@ -268,22 +279,21 @@ class DemandeReinitialisationSerializer(serializers.Serializer):
     Serializer pour demander un reset de mot de passe
     """
     email = serializers.EmailField(required=True)
-    
+
     def validate_email(self, value):
-        try:
-            user = Utilisateur.objects.get(email=value.lower(), est_actif=True)
-        except Utilisateur.DoesNotExist:
-            raise serializers.ValidationError("Aucun compte actif avec cet email")
-        
-        return user
-    
+        return value.lower().strip()
+
     def save(self):
         from .utils import envoyer_email_reset_mot_de_passe
-        user = self.validated_data['email']
-        token = user.generer_reset_token()
-        envoyer_email_reset_mot_de_passe(user, token)
-        logger.info(f"Token de réinitialisation généré pour: {user.email}")
-        return token
+        email = self.validated_data['email']
+        try:
+            user = Utilisateur.objects.get(email=email, est_actif=True)
+            token = user.generer_reset_token()
+            envoyer_email_reset_mot_de_passe(user, token)
+            logger.info(f"Token de réinitialisation généré pour: {user.email}")
+        except Utilisateur.DoesNotExist:
+            logger.info(f"Tentative reset mot de passe pour email inconnu: {email}")
+        return None
 
 
 class ReinitialisationMotDePasseSerializer(serializers.Serializer):
@@ -297,6 +307,10 @@ class ReinitialisationMotDePasseSerializer(serializers.Serializer):
         write_only=True
     )
     confirmation_mot_de_passe = serializers.CharField(required=False, write_only=True)
+
+    def validate_nouveau_mot_de_passe(self, value):
+        valider_complexite_mot_de_passe(value)
+        return value
 
     def validate(self, data):
         confirm = data.get('confirmation_mot_de_passe')

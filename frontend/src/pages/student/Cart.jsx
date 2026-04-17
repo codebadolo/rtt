@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Trash2, Plus, Minus, ShoppingCart, ArrowRight } from 'lucide-react'
+import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -53,6 +53,22 @@ export default function StudentCart() {
   })
 
   const rooms = Array.isArray(roomsData) ? roomsData : roomsData?.results ?? []
+
+  const commandesFermees = useMemo(() => {
+    if (!config) return null
+    if (!config.commandes_actives) {
+      return 'Les commandes sont temporairement désactivées.'
+    }
+    if (config.horaires_actifs && config.heure_ouverture && config.heure_fermeture) {
+      const now = new Date()
+      const pad = (n) => String(n).padStart(2, '0')
+      const heureActuelle = `${pad(now.getHours())}:${pad(now.getMinutes())}`
+      if (heureActuelle < config.heure_ouverture || heureActuelle > config.heure_fermeture) {
+        return `Les commandes sont acceptées entre ${config.heure_ouverture} et ${config.heure_fermeture}.`
+      }
+    }
+    return null
+  }, [config])
 
   const { fraisService, totalTTC } = useMemo(() => {
     if (!config) return { fraisService: 0, totalTTC: total }
@@ -128,6 +144,7 @@ export default function StudentCart() {
   }
 
   const isSubmitting = orderMutation.isPending || initierPaiementMutation.isPending
+  const canOrder = !commandesFermees
 
   if (items.length === 0) {
     return (
@@ -170,6 +187,16 @@ export default function StudentCart() {
           <h1 className="text-2xl font-bold text-gray-900">Mon panier</h1>
           <p className="text-gray-500 mt-1">{items.length} article{items.length > 1 ? 's' : ''}</p>
         </div>
+
+        {commandesFermees && (
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+            <Clock className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800 text-sm">Site temporairement fermé</p>
+              <p className="text-amber-700 text-sm mt-0.5">{commandesFermees}</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -252,7 +279,7 @@ export default function StudentCart() {
                       <option value="">Choisir une salle</option>
                       {rooms.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.secteur_nom} — {r.nom} {r.batiment ? `(${r.batiment})` : ''}
+                          {r.nom}{r.batiment ? ` (${r.batiment})` : ''}
                         </option>
                       ))}
                     </select>
@@ -375,8 +402,8 @@ export default function StudentCart() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="btn-primary w-full btn-lg"
+                  disabled={isSubmitting || !canOrder}
+                  className="btn-primary w-full btn-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">

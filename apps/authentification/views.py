@@ -349,6 +349,29 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
             })
         return Response(data)
 
+    @action(detail=True, methods=['post'], url_path='changer-role',
+            permission_classes=[EstAdmin])
+    def changer_role(self, request, pk=None):
+        """
+        Change le rôle d'un utilisateur. Réservé aux administrateurs.
+        """
+        ROLES_VALIDES = ['ETUDIANT', 'CHEF_SECTEUR', 'ADMIN', 'LIVREUR']
+        nouveau_role = request.data.get('role', '').strip()
+        if nouveau_role not in ROLES_VALIDES:
+            return Response(
+                {'error': f'Rôle invalide. Valeurs acceptées : {", ".join(ROLES_VALIDES)}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        utilisateur = self.get_object()
+        ancien_role = utilisateur.role
+        utilisateur.role = nouveau_role
+        utilisateur.save(update_fields=['role'])
+        logger.info(
+            f"Rôle modifié par {request.user.email}: {utilisateur.email} "
+            f"{ancien_role} → {nouveau_role}"
+        )
+        return Response({'message': 'Rôle modifié avec succès', 'role': nouveau_role})
+
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
         """

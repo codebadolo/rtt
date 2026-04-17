@@ -1,5 +1,8 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
+
+logger = logging.getLogger(__name__)
 
 
 class CommandeConsumer(AsyncWebsocketConsumer):
@@ -82,43 +85,44 @@ def envoyer_mise_a_jour_commande(commande):
     """
     Envoie la mise à jour de statut d'une commande à l'étudiant concerné
     et aux chefs du secteur via WebSocket.
+    Les erreurs WebSocket sont silencieuses pour ne pas bloquer la validation.
     """
-    from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_sync
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
 
-    channel_layer = get_channel_layer()
-    if not channel_layer:
-        return
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
 
-    messages_statut = {
-        'EN_ATTENTE': 'Commande reçue, en attente de traitement.',
-        'VALIDEE':    'Paiement confirmé ! Votre commande est en préparation.',
-        'REJETEE':    'Votre commande a été rejetée.',
-        'PRETE':      'Votre commande est prête ! Le livreur arrive.',
-        'DISTRIBUEE': 'Commande livrée. Bon appétit !',
-        'ANNULEE':    'Votre commande a été annulée.',
-    }
+        messages_statut = {
+            'EN_ATTENTE': 'Commande reçue, en attente de traitement.',
+            'VALIDEE':    'Paiement confirmé ! Votre commande est en préparation.',
+            'REJETEE':    'Votre commande a été rejetée.',
+            'PRETE':      'Votre commande est prête ! Le livreur arrive.',
+            'DISTRIBUEE': 'Commande livrée. Bon appétit !',
+            'ANNULEE':    'Votre commande a été annulée.',
+        }
 
-    payload = {
-        'type':    'commande_update',
-        'commande_id': commande.id,
-        'numero':  commande.numero_commande,
-        'statut':  commande.statut,
-        'message': messages_statut.get(commande.statut, f'Statut : {commande.statut}'),
-        'total':   str(commande.total_ttc),
-    }
+        payload = {
+            'type':    'commande_update',
+            'commande_id': commande.id,
+            'numero':  commande.numero_commande,
+            'statut':  commande.statut,
+            'message': messages_statut.get(commande.statut, f'Statut : {commande.statut}'),
+            'total':   str(commande.total_ttc),
+        }
 
-    # Envoyer à l'étudiant
-    async_to_sync(channel_layer.group_send)(
-        f'user_{commande.etudiant_id}',
-        {'type': 'commande.update', 'data': payload},
-    )
-
-    # Notifier les chefs du secteur
-    async_to_sync(channel_layer.group_send)(
-        f'chef_{commande.secteur_id}',
-        {'type': 'commande.update', 'data': payload},
-    )
+        async_to_sync(channel_layer.group_send)(
+            f'user_{commande.etudiant_id}',
+            {'type': 'commande.update', 'data': payload},
+        )
+        async_to_sync(channel_layer.group_send)(
+            f'chef_{commande.secteur_id}',
+            {'type': 'commande.update', 'data': payload},
+        )
+    except Exception as e:
+        logger.warning("WebSocket notification failed for commande %s: %s", commande.pk, e)
 
 
 def notifier_nouvelle_commande(commande):

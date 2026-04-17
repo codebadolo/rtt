@@ -33,4 +33,7 @@ export const usersApi = {
 
   resetPassword: (id) =>
     client.post(`/utilisateurs/${id}/reset-password/`).then((r) => r.data),
+
+  changeRole: (id, role) =>
+    client.post(`/utilisateurs/${id}/changer-role/`, { role }).then((r) => r.data),
 }
