@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { ShoppingBag, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from 'lucide-react'
-import toast from 'react-hot-toast'
 import { useGoogleLogin } from '@react-oauth/google'
-import useAuthStore from '../../stores/authStore'
+import { ArrowLeft, Eye, EyeOff, Lock, Mail, Phone, ShoppingBag, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { authApi } from '../../api/auth'
 import { setStoredToken } from '../../api/client'
+import useAuthStore from '../../stores/authStore'
 
 const ROLE_REDIRECTS = {
   ETUDIANT: '/etudiant',
@@ -120,7 +120,7 @@ export default function Register() {
           <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-amber-400 rounded-lg flex items-center justify-center">
             <ShoppingBag className="w-3.5 h-3.5 text-white" />
           </div>
-          <span className="font-bold text-gray-900">Ritoto <span className="text-orange-500">Express</span></span>
+          <span className="font-bold text-gray-900">Ritoto <span className="text-orange-500">Campus</span></span>
         </Link>
       </div>
 

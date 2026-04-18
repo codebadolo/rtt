@@ -1,4 +1,4 @@
-# Plan de Déploiement — Ritoto Express
+# Plan de Déploiement — Ritoto Campus
 ## VPS Contabo · Docker · ritoto-campus.com
 
 ---
@@ -525,7 +525,7 @@ docker compose -f docker-compose.prod.yml exec backend python manage.py shell
 ## 4. Récapitulatif des fichiers à créer
 
 ```
-ritoto-express/
+ritoto-Campus/
 ├── Dockerfile.prod                        ← Dockerfile production (Gunicorn + Daphne)
 ├── docker-compose.prod.yml                ← Stack complète production
 ├── .env.production.example                ← Template des variables d'env
@@ -590,4 +590,4 @@ frontend/src/
 
 ---
 
-*Document de référence — Ritoto Express · Version 2.0 · Mars 2026*
+*Document de référence — Ritoto Campus · Version 2.0 · Mars 2026*

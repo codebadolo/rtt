@@ -29,7 +29,7 @@ function Navbar() {
             <ShoppingBag className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-gray-900 text-lg">
-            Ritoto <span className="text-orange-500">Express</span>
+            Ritoto <span className="text-orange-500">Campus</span>
           </span>
         </Link>
         <div className="flex items-center gap-3">

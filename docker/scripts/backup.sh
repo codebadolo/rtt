@@ -1,5 +1,5 @@
 #!/bin/bash
-# ─── Backup quotidien Ritoto Express ──────────────────────────────────────────
+# ─── Backup quotidien Ritoto Campus ──────────────────────────────────────────
 # Planifier : 0 2 * * * /var/www/ritoto/docker/scripts/backup.sh >> /var/log/ritoto-backup.log 2>&1
 
 set -euo pipefail

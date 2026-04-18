@@ -1,6 +1,6 @@
 """
 Management command: seed_data
-Peuple la base avec les vraies salles et produits de Ritoto Express.
+Peuple la base avec les vraies salles et produits de Ritoto Campus.
 Usage: python manage.py seed_data [--reset]
 """
 from django.core.management.base import BaseCommand
@@ -10,7 +10,7 @@ from apps.authentification.models import Utilisateur
 
 
 class Command(BaseCommand):
-    help = 'Seed salles et produits réels (Ritoto Express)'
+    help = 'Seed salles et produits réels (Ritoto Campus)'
 
     def add_arguments(self, parser):
         parser.add_argument('--reset', action='store_true', help='Supprimer avant de recréer')

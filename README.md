@@ -1,4 +1,4 @@
-● Bash(cd /home/olli/ritoto-express && python manage.py shell -c "
+● Bash(cd /home/olli/ritoto-Campus && python manage.py shell -c "
 from apps.authentification.models import Utilisateur…)
 ⎿  23 objects imported automatically (use -v 2 for details).
 
@@ -140,7 +140,7 @@ Avant de toucher au serveur, assure-toi que ton code est à jour sur GitHub :
 
 # Sur ton PC
 
-cd /home/olli/ritoto-express
+cd /home/olli/ritoto-Campus
 git add -A
 git commit -m "deploy ready"
 git push origin main
@@ -173,7 +173,7 @@ apt-get install -y certbot
 Étape 4 — Cloner le projet
 
 mkdir -p /var/www/ritoto
-git clone https://github.com/TON_COMPTE/ritoto-express.git /var/www/ritoto
+git clone https://github.com/TON_COMPTE/ritoto-Campus.git /var/www/ritoto
 
 ---
 

@@ -1,5 +1,5 @@
 ================================================================================
-                     RITOTO EXPRESS — BUSINESS MODEL
+                     Ritoto Campus — BUSINESS MODEL
                          Document de référence interne
                               17 avril 2026
 ================================================================================
@@ -7,7 +7,7 @@
 
 1. DESCRIPTION DU SERVICE
 ────────────────────────────────────────────────────────────────────────────────
-Ritoto Express est une plateforme de commande et livraison de repas/snacks
+Ritoto Campus est une plateforme de commande et livraison de repas/snacks
 à destination des étudiants sur campus universitaire.
 
 Les étudiants commandent depuis leur téléphone, paient en ligne via mobile
@@ -66,13 +66,13 @@ money, et sont livrés directement dans leur salle de classe.
   │ Reversé au vendeur (produits)       1 200 FCFA     │
   │ Frais settlement Senfenico (~0.2%)  -    3 FCFA     │
   │                                    ─────────────    │
-  │ MARGE NETTE RITOTO EXPRESS         ~   77 FCFA     │
+  │ MARGE NETTE Ritoto Campus         ~   77 FCFA     │
   └─────────────────────────────────────────────────────┘
 
   Taux de frais de service actuel       : 10%
   Frais Senfenico collecte (estimé)     : 2% à 3%
   Frais Senfenico settlement (estimé)   : 0.2%
-  → Marge nette Ritoto Express          : ~6% à 7% du CA produits
+  → Marge nette Ritoto Campus          : ~6% à 7% du CA produits
 
   Note : les frais Senfenico exacts sont visibles dans le dashboard
   Senfenico sous "Business Settings → Pricing".

@@ -6,7 +6,7 @@ from .base import *
 # ─── Debug ────────────────────────────────────────────────────────────────────
 
 DEBUG = True
-SECRET_KEY = 'django-insecure-dev-key-change-in-production-ritoto-express-2026'
+SECRET_KEY = 'django-insecure-dev-key-change-in-production-ritoto-Campus-2026'
 ALLOWED_HOSTS = ['*']
 
 # ─── Base de données SQLite locale ───────────────────────────────────────────
@@ -14,7 +14,7 @@ ALLOWED_HOSTS = ['*']
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db' / 'ritoto-express.sqlite3',
+        'NAME': BASE_DIR / 'db' / 'ritoto-Campus.sqlite3',
     }
 }
 

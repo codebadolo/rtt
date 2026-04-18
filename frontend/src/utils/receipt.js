@@ -73,7 +73,7 @@ export function printReceipt(order) {
 <body>
   <div class="brand">
     <div class="brand-name">Ritoto Campus</div>
-    <div class="brand-sub">Livraison express sur le campus</div>
+    <div class="brand-sub">Livraison Campus sur le campus</div>
   </div>
 
   <h2>Reçu de commande</h2>

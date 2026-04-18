@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ritoto Express — Architecture & Déploiement</title>
+<title>Ritoto Campus — Architecture & Déploiement</title>
 <style>
   :root {
     --primary: #f97316;
@@ -610,7 +610,7 @@
 ══════════════════════════════════════════════ -->
 <div class="cover">
   <div class="cover-logo">🍽</div>
-  <h1>Ritoto Express</h1>
+  <h1>Ritoto Campus</h1>
   <p class="subtitle">Architecture du code &amp; Guide de déploiement</p>
 
   <div class="cover-badges">
@@ -686,7 +686,7 @@
 
   <h3>1.1 Vue d'ensemble de la stack</h3>
 
-  <p>Ritoto Express est une application de commande de repas pour campus universitaire. Elle repose sur une architecture découplée : un backend API REST Django et un frontend React, communiquant via HTTP pour les opérations classiques et via WebSocket pour les notifications temps réel.</p>
+  <p>Ritoto Campus est une application de commande de repas pour campus universitaire. Elle repose sur une architecture découplée : un backend API REST Django et un frontend React, communiquant via HTTP pour les opérations classiques et via WebSocket pour les notifications temps réel.</p>
 
   <div class="arch-diagram">
 <span class="arch-internet">Internet (navigateur étudiant / mobile)</span>
@@ -716,7 +716,7 @@ par Nginx                  │             (HTTP REST)   │
   <h3>1.2 Structure du projet Django</h3>
 
   <div class="file-tree">
-<span class="dir">ritoto-express/</span>
+<span class="dir">ritoto-Campus/</span>
 ├── <span class="dir">apps/</span>
 │   ├── <span class="dir">authentification/</span>   <span class="comment">← Modèle utilisateur, JWT, auth email</span>
 │   ├── <span class="dir">administration/</span>     <span class="comment">← Config, produits, secteurs, comptabilité</span>
@@ -1152,7 +1152,7 @@ api.ritoto-campus.com   A  →  &lt;IP_VPS&gt;</code></pre>
       <li>Installer Docker Compose v2 (<code>docker compose version</code> pour vérifier)</li>
       <li>Installer Certbot : <code>apt install certbot python3-certbot-nginx</code></li>
       <li>Pointer les enregistrements DNS vers l'IP du VPS</li>
-      <li>Cloner le dépôt Git sur le VPS : <code>/opt/ritoto-express/</code></li>
+      <li>Cloner le dépôt Git sur le VPS : <code>/opt/ritoto-Campus/</code></li>
     </ul>
   </div>
 
@@ -1392,7 +1392,7 @@ DEFAULT_FROM_EMAIL=noreply@ritoto-campus.com</code></pre>
     <tbody>
       <tr><td>Base PostgreSQL</td><td>volume <code>postgres_data</code></td><td>🔴 Critique</td><td>Quotidien</td></tr>
       <tr><td>Fichiers media</td><td>volume <code>media_data</code></td><td>🟠 Haute</td><td>Quotidien</td></tr>
-      <tr><td>Fichier <code>.env</code></td><td><code>/opt/ritoto-express/</code></td><td>🔴 Critique</td><td>À chaque modif</td></tr>
+      <tr><td>Fichier <code>.env</code></td><td><code>/opt/ritoto-Campus/</code></td><td>🔴 Critique</td><td>À chaque modif</td></tr>
       <tr><td>Certificats SSL</td><td><code>/etc/letsencrypt/</code></td><td>🟠 Haute</td><td>À chaque renouvellement</td></tr>
       <tr><td>Config Nginx</td><td><code>docker/nginx/</code></td><td>🟡 Moyenne</td><td>Via Git</td></tr>
     </tbody>
@@ -1401,7 +1401,7 @@ DEFAULT_FROM_EMAIL=noreply@ritoto-campus.com</code></pre>
   <h4>Script backup — logique</h4>
 
   <pre><code>#!/bin/bash
-# backup.sh — exécuter depuis /opt/ritoto-express/
+# backup.sh — exécuter depuis /opt/ritoto-Campus/
 DATE=$(date +%Y%m%d-%H%M)
 BACKUP_DIR="/opt/backups/ritoto"
 mkdir -p "$BACKUP_DIR"
@@ -1411,7 +1411,7 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
   pg_dump -U ritoto ritoto > "$BACKUP_DIR/db-$DATE.sql"
 
 # 2. Archive media
-tar -czf "$BACKUP_DIR/media-$DATE.tar.gz" -C /opt/ritoto-express media/
+tar -czf "$BACKUP_DIR/media-$DATE.tar.gz" -C /opt/ritoto-Campus media/
 
 # 3. Archive complète
 tar -czf "$BACKUP_DIR/ritoto-backup-$DATE.tar.gz" \
@@ -1429,10 +1429,10 @@ echo "Backup $DATE terminé."</code></pre>
   <h4>Activation du cron</h4>
 
   <pre><code># Backup quotidien à 2h du matin
-0 2 * * * /opt/ritoto-express/docker/scripts/backup.sh >> /var/log/ritoto-backup.log 2>&1
+0 2 * * * /opt/ritoto-Campus/docker/scripts/backup.sh >> /var/log/ritoto-backup.log 2>&1
 
 # Renouvellement SSL à 3h du matin
-0 3 * * * certbot renew --quiet && docker compose -f /opt/ritoto-express/docker-compose.prod.yml restart nginx</code></pre>
+0 3 * * * certbot renew --quiet && docker compose -f /opt/ritoto-Campus/docker-compose.prod.yml restart nginx</code></pre>
 
 </div>
 
@@ -1472,7 +1472,7 @@ echo "Backup $DATE terminé."</code></pre>
 
   <h4>Déployer une mise à jour backend</h4>
 
-  <pre><code>cd /opt/ritoto-express
+  <pre><code>cd /opt/ritoto-Campus
 git pull
 docker compose -f docker-compose.prod.yml build backend daphne
 docker compose -f docker-compose.prod.yml up -d --no-deps backend daphne
@@ -1480,7 +1480,7 @@ docker compose exec backend python manage.py migrate</code></pre>
 
   <h4>Mettre à jour le frontend uniquement</h4>
 
-  <pre><code>cd /opt/ritoto-express/frontend
+  <pre><code>cd /opt/ritoto-Campus/frontend
 npm run build
 docker compose -f docker-compose.prod.yml restart frontend nginx</code></pre>
 
@@ -1512,7 +1512,7 @@ docker compose -f docker-compose.prod.yml up -d postgres
 docker compose exec -T postgres psql -U ritoto ritoto < /opt/backups/ritoto/db-YYYYMMDD.sql
 
 # 3. Restaurer les media
-tar -xzf /opt/backups/ritoto/media-YYYYMMDD.tar.gz -C /opt/ritoto-express/
+tar -xzf /opt/backups/ritoto/media-YYYYMMDD.tar.gz -C /opt/ritoto-Campus/
 
 # 4. Redémarrer la stack complète
 docker compose -f docker-compose.prod.yml up -d</code></pre>
@@ -1590,7 +1590,7 @@ docker compose -f docker-compose.prod.yml up -d</code></pre>
   <hr class="divider" style="margin-top:40px">
 
   <p style="text-align:center;font-size:9pt;color:var(--gray-400);margin-top:24px">
-    Ritoto Express · Architecture &amp; Guide de déploiement · Version 2.0 · Mars 2026<br>
+    Ritoto Campus · Architecture &amp; Guide de déploiement · Version 2.0 · Mars 2026<br>
     VPS Contabo · Docker · <strong>ritoto-campus.com</strong> / <strong>api.ritoto-campus.com</strong>
   </p>
 

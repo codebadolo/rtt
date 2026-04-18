@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# deploy.sh — Script de déploiement Ritoto Express
+# deploy.sh — Script de déploiement Ritoto Campus
 # À exécuter en root sur le VPS (une seule fois)
 #
 # Usage : bash deploy.sh
@@ -23,7 +23,7 @@ error()   { echo -e "${RED}[ERR]${NC}  $1"; exit 1; }
 
 echo ""
 echo "═══════════════════════════════════════════"
-echo "   Ritoto Express — Déploiement VPS"
+echo "   Ritoto Campus — Déploiement VPS"
 echo "═══════════════════════════════════════════"
 echo ""
 

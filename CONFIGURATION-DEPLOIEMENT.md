@@ -1,6 +1,6 @@
-# Configuration du Déploiement — Ritoto Express
+# Configuration du Déploiement — Ritoto Campus
 
-**Projet** : Ritoto Express
+**Projet** : Ritoto Campus
 **Serveur** : VPS avec domaine géré sur LWS
 **Répertoire d'installation** : `/var/www/ritoto`
 **Utilisateur système** : `ritoto`
@@ -833,4 +833,4 @@ Aucun port de PostgreSQL ou Redis n'est expose a l'exterieur du VPS. Ils sont un
 
 ---
 
-*Ritoto Express — Document de configuration deploiement — Mars 2026*
+*Ritoto Campus — Document de configuration deploiement — Mars 2026*

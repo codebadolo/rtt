@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 export default function AuthLayout({ children }) {
   return (
@@ -12,7 +12,7 @@ export default function AuthLayout({ children }) {
               <ShoppingBag className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-3xl font-extrabold text-gray-900">
-              Ritoto <span className="text-orange-500">Express</span>
+              Ritoto <span className="text-orange-500">Campus</span>
             </h1>
           </Link>
           <p className="text-gray-400 mt-1 text-sm">Service de livraison universitaire</p>

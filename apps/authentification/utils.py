@@ -21,7 +21,7 @@ def envoyer_email_reset_mot_de_passe(utilisateur, token):
     """
     Envoie un email de réinitialisation de mot de passe
     """
-    sujet = "Réinitialisation de votre mot de passe - Ritoto-Express"
+    sujet = "Réinitialisation de votre mot de passe - Ritoto-Campus"
     
     contexte = {
         'utilisateur': utilisateur,
@@ -52,7 +52,7 @@ def envoyer_notification_kyc(utilisateur, statut, motif=None):
     """
     Envoie une notification pour le statut KYC
     """
-    sujet = f"Mise à jour de votre KYC - Ritoto-Express"
+    sujet = f"Mise à jour de votre KYC - Ritoto-Campus"
     
     contexte = {
         'utilisateur': utilisateur,
