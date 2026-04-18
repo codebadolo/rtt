@@ -34,7 +34,14 @@ export default function ResetPassword() {
       toast.success('Mot de passe réinitialisé avec succès')
       setTimeout(() => navigate('/connexion'), 3000)
     } catch (err) {
-      const msg = err.response?.data?.detail ?? 'Lien invalide ou expiré'
+      const d = err.response?.data
+      const msg = typeof d === 'string'
+        ? d
+        : d?.detail
+          ?? d?.nouveau_mot_de_passe?.[0]
+          ?? d?.non_field_errors?.[0]
+          ?? d?.[0]
+          ?? 'Lien invalide ou expiré'
       toast.error(msg)
     }
   }

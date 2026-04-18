@@ -45,9 +45,9 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8001',
 ]
 
-# ─── Email — afficher dans la console en dev ──────────────────────────────────
+# ─── Email — SMTP réel même en dev ───────────────────────────────────────────
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
 # ─── Logs ─────────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,7 @@
 import re
+import requests as http_requests
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from django.conf import settings
-from google.oauth2 import id_token
-from google.auth.transport import requests
 from .models import Utilisateur
 import logging
 
@@ -44,21 +42,18 @@ class InscriptionGoogleSerializer(serializers.Serializer):
     
     def validate_token(self, value):
         """
-        Valide le token Google
+        Valide l'access_token Google via l'endpoint userinfo.
         """
         try:
-            idinfo = id_token.verify_oauth2_token(
-                value,
-                requests.Request(),
-                settings.GOOGLE_OAUTH2_CLIENT_ID
+            resp = http_requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {value}'},
+                timeout=10,
             )
-            
-            if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-                raise serializers.ValidationError("Token invalide: émetteur non reconnu")
-            
-            return idinfo
-            
-        except ValueError as e:
+            if resp.status_code != 200:
+                raise ValueError(f"userinfo HTTP {resp.status_code}")
+            return resp.json()
+        except Exception as e:
             logger.error(f"Erreur validation token Google: {str(e)}")
             raise serializers.ValidationError("Token Google invalide ou expiré")
     
@@ -95,7 +90,7 @@ class InscriptionGoogleSerializer(serializers.Serializer):
             prenom=self.validated_data['prenom'],
             telephone=self.validated_data['telephone'],
             role=self.validated_data['role'],
-            matricule=self.validated_data.get('matricule', ''),
+            matricule=self.validated_data.get('matricule') or None,
             google_id=token_info.get('sub'),
             photo_profil=token_info.get('picture'),
         )
@@ -323,12 +318,13 @@ class ReinitialisationMotDePasseSerializer(serializers.Serializer):
         try:
             user = Utilisateur.objects.get(reset_token=token)
             if not user.verifier_reset_token(token):
-                raise serializers.ValidationError("Token invalide ou expiré")
-            
+                raise serializers.ValidationError({"detail": "Lien de réinitialisation expiré. Veuillez en demander un nouveau."})
+
             user.set_password(self.validated_data['nouveau_mot_de_passe'])
+            user.save(update_fields=['password'])
             user.reinitialiser_reset_token()
             logger.info(f"Mot de passe réinitialisé pour: {user.email}")
             return user
-            
+
         except Utilisateur.DoesNotExist:
-            raise serializers.ValidationError("Token invalide")
+            raise serializers.ValidationError({"detail": "Lien invalide. Veuillez en demander un nouveau."})

@@ -136,24 +136,26 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'], url_path='connexion-google')
     def connexion_google(self, request):
         """
-        Vérifie un token Google.
+        Vérifie un access_token Google via l'endpoint userinfo.
         - Si l'utilisateur existe → connexion directe (retourne le token auth)
         - Si l'utilisateur n'existe pas → retourne le profil Google pour pré-remplir l'inscription
         """
-        from google.oauth2 import id_token as google_id_token
-        from google.auth.transport import requests as google_requests
+        import requests as http_requests
 
         token = request.data.get('token')
         if not token:
             return Response({'error': 'Token Google manquant'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            idinfo = google_id_token.verify_oauth2_token(
-                token,
-                google_requests.Request(),
-                settings.GOOGLE_OAUTH2_CLIENT_ID,
+            resp = http_requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {token}'},
+                timeout=10,
             )
-        except ValueError as e:
+            if resp.status_code != 200:
+                raise ValueError(f"userinfo HTTP {resp.status_code}")
+            idinfo = resp.json()
+        except Exception as e:
             logger.warning(f"Token Google invalide: {e}")
             return Response({'error': 'Token Google invalide ou expiré'}, status=status.HTTP_400_BAD_REQUEST)
 
