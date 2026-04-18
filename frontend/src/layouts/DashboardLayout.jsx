@@ -122,26 +122,27 @@ export default function DashboardLayout({ children }) {
       {/* ── Sidebar ── */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-white border-r border-gray-100 z-30
+          fixed top-0 left-0 h-full z-30
           flex flex-col transition-all duration-300 ease-in-out
+          bg-gradient-to-b from-orange-500 to-orange-600
           ${sidebarW}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:relative lg:z-auto lg:flex-shrink-0
         `}
       >
         {/* Logo row */}
-        <div className={`flex items-center gap-3 px-4 py-4 border-b border-gray-100 h-14 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-primary-500 flex-shrink-0">
+        <div className={`flex items-center gap-3 px-4 py-4 border-b border-orange-400/40 h-14 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-white/20 flex-shrink-0">
             <Utensils className="h-4 w-4 text-white" />
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="font-bold text-gray-900 leading-none text-sm truncate">Ritoto Campus</p>
-              <p className="text-xs text-gray-400 mt-0.5 truncate">{roleLabels[user?.role]}</p>
+              <p className="font-bold text-white leading-none text-sm truncate">Ritoto Campus</p>
+              <p className="text-xs text-orange-200 mt-0.5 truncate">{roleLabels[user?.role]}</p>
             </div>
           )}
           <button
-            className="ml-auto p-1 rounded-lg text-gray-400 hover:text-gray-600 lg:hidden flex-shrink-0"
+            className="ml-auto p-1 rounded-lg text-orange-200 hover:text-white lg:hidden flex-shrink-0"
             onClick={() => setMobileOpen(false)}
           >
             <X className="h-5 w-5" />
@@ -150,27 +151,27 @@ export default function DashboardLayout({ children }) {
 
         {/* User info */}
         {!collapsed && (
-          <div className="px-4 py-3 border-b border-gray-50">
+          <div className="px-4 py-3 border-b border-orange-400/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary-600 font-semibold text-xs">
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-semibold text-xs">
                   {user?.prenom?.[0]}{user?.nom?.[0]}
                 </span>
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">
+                <p className="text-sm font-medium text-white truncate">
                   {user?.prenom} {user?.nom}
                 </p>
-                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+                <p className="text-xs text-orange-200 truncate">{user?.email}</p>
               </div>
             </div>
           </div>
         )}
 
         {collapsed && (
-          <div className="flex justify-center py-3 border-b border-gray-50">
-            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
-              <span className="text-primary-600 font-semibold text-xs">
+          <div className="flex justify-center py-3 border-b border-orange-400/30">
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+              <span className="text-white font-semibold text-xs">
                 {user?.prenom?.[0]}{user?.nom?.[0]}
               </span>
             </div>
@@ -178,7 +179,7 @@ export default function DashboardLayout({ children }) {
         )}
 
         {/* Nav */}
-        <nav className="flex-1   py-2 px-2">
+        <nav className="flex-1 py-2 px-2">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -192,20 +193,20 @@ export default function DashboardLayout({ children }) {
                   `flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-sm font-medium mb-0.5 transition-all
                   ${collapsed ? 'justify-center' : ''}
                   ${isActive
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-white/20 text-white shadow-sm'
+                    : 'text-orange-100 hover:bg-white/10 hover:text-white'
                   }`
                 }
               >
                 <Icon className="h-5 w-5 flex-shrink-0" />
                 {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                 {!collapsed && item.badge === 'cart' && cartCount > 0 && (
-                  <span className="bg-primary-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                  <span className="bg-white text-orange-500 text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
                     {cartCount}
                   </span>
                 )}
                 {collapsed && item.badge === 'cart' && cartCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary-500" />
+                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white" />
                 )}
               </NavLink>
             )
@@ -213,11 +214,11 @@ export default function DashboardLayout({ children }) {
         </nav>
 
         {/* Logout */}
-        <div className="p-2 border-t border-gray-100">
+        <div className="p-2 border-t border-orange-400/30">
           <button
             onClick={handleLogout}
             title={collapsed ? 'Se déconnecter' : undefined}
-            className={`flex items-center gap-3 w-full px-2.5 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors ${collapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-3 w-full px-2.5 py-2.5 rounded-xl text-sm font-medium text-orange-100 hover:bg-white/10 hover:text-white transition-colors ${collapsed ? 'justify-center' : ''}`}
           >
             <LogOut className="h-5 w-5 flex-shrink-0" />
             {!collapsed && <span>Se déconnecter</span>}
