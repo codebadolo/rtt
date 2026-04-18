@@ -367,7 +367,8 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         utilisateur = self.get_object()
         ancien_role = utilisateur.role
         utilisateur.role = nouveau_role
-        utilisateur.save(update_fields=['role'])
+        utilisateur.is_staff = (nouveau_role == 'ADMIN')
+        utilisateur.save(update_fields=['role', 'is_staff'])
         logger.info(
             f"Rôle modifié par {request.user.email}: {utilisateur.email} "
             f"{ancien_role} → {nouveau_role}"

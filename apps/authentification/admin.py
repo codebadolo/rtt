@@ -8,12 +8,12 @@ from .models import Utilisateur
 class UtilisateurAdmin(BaseUserAdmin):
     list_display = ['email', 'get_full_name', 'role', 'est_actif', 'date_inscription']
     list_filter = ['role', 'est_actif', 'date_inscription']
-    search_fields = ['email', 'nom', 'prenom', 'matricule', 'telephone']
+    search_fields = ['email', 'nom', 'prenom', 'telephone']
     ordering = ['-date_inscription']
 
     fieldsets = (
         ('Informations de connexion', {'fields': ('email', 'password')}),
-        ('Informations personnelles', {'fields': ('nom', 'prenom', 'matricule', 'telephone', 'date_naissance', 'adresse')}),
+        ('Informations personnelles', {'fields': ('nom', 'prenom', 'telephone', 'date_naissance', 'adresse')}),
         ('Rôles et statuts', {'fields': ('role', 'est_actif')}),
         ('Permissions', {'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions'), 'classes': ('collapse',)}),
         ('Dates importantes', {'fields': ('date_inscription', 'derniere_connexion'), 'classes': ('collapse',)}),

@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.db import models
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande
+from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
 
 # ──────────────────── ADMIN SECTEUR ────────────────────
 @admin.register(Secteur)
@@ -332,3 +332,77 @@ class HoraireCommandeAdmin(admin.ModelAdmin):
         )
     jour_semaine_display.short_description = 'Jour'
     jour_semaine_display.admin_order_field = 'jour_semaine'
+
+
+# ──────────────────── ADMIN CONFIGURATION ────────────────────
+@admin.register(Configuration)
+class ConfigurationAdmin(admin.ModelAdmin):
+    list_display = ['taux_service', 'commandes_actives', 'horaires_actifs', 'heure_ouverture', 'heure_fermeture', 'date_modification']
+    readonly_fields = ['date_modification']
+
+    fieldsets = (
+        ('Frais de service', {
+            'fields': ('taux_service',),
+            'description': 'Pourcentage appliqué sur le sous-total de chaque commande.',
+        }),
+        ('Disponibilité des commandes', {
+            'fields': ('commandes_actives', 'horaires_actifs', 'heure_ouverture', 'heure_fermeture'),
+        }),
+        ('Comptes de paiement (Senfenico)', {
+            'fields': ('numero_orange', 'numero_moov', 'numero_sank'),
+            'classes': ('collapse',),
+        }),
+        ('Métadonnées', {
+            'fields': ('date_modification',),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def has_add_permission(self, request):
+        return not Configuration.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+# ──────────────────── ADMIN SETTLEMENT ────────────────────
+@admin.register(SettlementRecord)
+class SettlementRecordAdmin(admin.ModelAdmin):
+    list_display = ['reference_senfenico', 'montant_format', 'compte', 'statut_badge', 'declenche_par', 'date_creation']
+    list_filter = ['statut', 'compte', 'date_creation']
+    search_fields = ['reference_senfenico', 'note']
+    ordering = ['-date_creation']
+    readonly_fields = ['reference_senfenico', 'montant', 'compte', 'declenche_par', 'date_creation', 'date_modification']
+
+    fieldsets = (
+        ('Informations', {
+            'fields': ('reference_senfenico', 'montant', 'compte', 'statut', 'note'),
+        }),
+        ('Déclenchement', {
+            'fields': ('declenche_par', 'date_creation', 'date_modification'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def montant_format(self, obj):
+        return format_html('<strong style="color: #4CAF50;">{} FCFA</strong>', f'{obj.montant:,.0f}')
+    montant_format.short_description = 'Montant'
+    montant_format.admin_order_field = 'montant'
+
+    def statut_badge(self, obj):
+        colors = {
+            'processing': '#FF9800',
+            'in_transit': '#2196F3',
+            'success':    '#4CAF50',
+            'cancelled':  '#9E9E9E',
+            'failed':     '#F44336',
+        }
+        color = colors.get(obj.statut, '#9E9E9E')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 4px;">{}</span>',
+            color, obj.get_statut_display()
+        )
+    statut_badge.short_description = 'Statut'
+
+    def has_add_permission(self, request):
+        return False

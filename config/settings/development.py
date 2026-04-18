@@ -14,7 +14,7 @@ ALLOWED_HOSTS = ['*']
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db' / 'ritoto-Campus.sqlite3',
+        'NAME': BASE_DIR / 'db' / 'ritoto-express.sqlite3',
     }
 }
 

@@ -257,13 +257,11 @@ class Command(BaseCommand):
         for i, prenom in enumerate(prenoms):
             nom = noms[i % len(noms)]
             annee = annees[i % len(annees)]
-            matricule = f'{annee}-ISIG-{str(i + 1).zfill(4)}'
             email = f'{prenom.lower().replace("é","e").replace("è","e").replace("ê","e").replace("ô","o").replace("û","u")}.{nom.lower().replace("é","e").replace("è","e")}@isig.bf'
 
             etudiant, created = Utilisateur.objects.get_or_create(
-                matricule=matricule,
+                email=email,
                 defaults={
-                    'email': email,
                     'nom': nom,
                     'prenom': prenom,
                     'telephone': f'7{str(random.randint(0, 9))}{str(random.randint(10000000, 99999999))}',

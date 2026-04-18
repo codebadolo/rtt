@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm } from 'react-hook-form'
 import {
-  ArrowLeft, Mail, Phone, GraduationCap, Calendar,
+  ArrowLeft, Mail, Phone, Calendar,
   ShoppingBag, ToggleLeft, ToggleRight,
   ClipboardList, User, CreditCard, MapPin, DoorOpen,
-  KeyRound,
+  KeyRound, Pencil, ShieldAlert,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
@@ -136,16 +137,6 @@ function EtudiantPanel({ user, orders, ordersLoading }) {
 
   return (
     <>
-      {user.matricule && (
-        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <GraduationCap className="h-5 w-5 text-gray-400" />
-          <div>
-            <p className="text-xs text-gray-400">Matricule</p>
-            <p className="font-mono font-semibold text-sm text-gray-800">{user.matricule}</p>
-          </div>
-        </div>
-      )}
-
       {/* Activity stats */}
       <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -358,6 +349,116 @@ function AdminPanel({ user }) {
   )
 }
 
+/* ── Change role modal ── */
+const ROLE_OPTIONS = [
+  { value: 'ETUDIANT',     label: 'Étudiant' },
+  { value: 'CHEF_SECTEUR', label: 'Chef de secteur' },
+  { value: 'LIVREUR',      label: 'Livreur' },
+  { value: 'ADMIN',        label: 'Administrateur' },
+]
+
+function ChangeRoleModal({ user, isOpen, onClose }) {
+  const qc = useQueryClient()
+  const { register, handleSubmit } = useForm({ values: { role: user?.role ?? 'ETUDIANT' } })
+
+  const mut = useMutation({
+    mutationFn: ({ role }) => usersApi.changeRole(user.id, role),
+    onSuccess: (_, { role }) => {
+      qc.invalidateQueries({ queryKey: ['user', String(user.id)] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Rôle modifié')
+      onClose()
+    },
+    onError: (e) => toast.error(e.response?.data?.error ?? 'Erreur'),
+  })
+
+  if (!user) return null
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Changer le rôle">
+      <form onSubmit={handleSubmit((d) => mut.mutate(d))} className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Rôle actuel de <strong>{user.prenom} {user.nom}</strong> :{' '}
+          <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_STYLES[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
+            {ROLE_LABELS[user.role]}
+          </span>
+        </p>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau rôle</label>
+          <select className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" {...register('role')}>
+            {ROLE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Annuler</button>
+          <button type="submit" disabled={mut.isPending} className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+            {mut.isPending ? 'Modification…' : 'Confirmer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/* ── Edit user modal ── */
+function EditUserModal({ user, isOpen, onClose }) {
+  const qc = useQueryClient()
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    values: {
+      prenom:    user?.prenom ?? '',
+      nom:       user?.nom ?? '',
+      email:     user?.email ?? '',
+      telephone: user?.telephone ?? '',
+    },
+  })
+
+  const mut = useMutation({
+    mutationFn: (d) => usersApi.update(user.id, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['user', String(user.id)] })
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Profil mis à jour')
+      onClose()
+    },
+    onError: (e) => {
+      const d = e.response?.data
+      toast.error(d?.email?.[0] ?? d?.detail ?? Object.values(d ?? {})[0]?.[0] ?? 'Erreur')
+    },
+  })
+
+  const field = (name, label, opts = {}) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <input
+        {...register(name, opts.rules)}
+        type={opts.type ?? 'text'}
+        className={`w-full px-3 py-2.5 rounded-xl border text-sm outline-none transition-colors focus:border-orange-400 focus:ring-2 focus:ring-orange-100 ${errors[name] ? 'border-red-400' : 'border-gray-200'}`}
+      />
+      {errors[name] && <p className="text-red-500 text-xs mt-1">{errors[name].message}</p>}
+    </div>
+  )
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Modifier le profil">
+      <form onSubmit={handleSubmit((d) => mut.mutate(d))} className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          {field('prenom', 'Prénom', { rules: { required: 'Requis' } })}
+          {field('nom', 'Nom', { rules: { required: 'Requis' } })}
+        </div>
+        {field('email', 'Email', { type: 'email', rules: { required: 'Requis' } })}
+        {field('telephone', 'Téléphone', { type: 'tel' })}
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Annuler</button>
+          <button type="submit" disabled={mut.isPending} className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold disabled:opacity-60 transition-colors">
+            {mut.isPending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 /* ── Reset password modal ── */
 function ResetPasswordModal({ userId, isOpen, onClose }) {
   const [result, setResult] = useState(null)
@@ -398,6 +499,8 @@ export default function AdminUserDetail() {
   const { id } = useParams()
   const qc = useQueryClient()
   const [showReset, setShowReset] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showRole, setShowRole] = useState(false)
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ['user', id],
@@ -474,6 +577,20 @@ export default function AdminUserDetail() {
               {/* Actions */}
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <button
+                  onClick={() => setShowEdit(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Modifier
+                </button>
+                <button
+                  onClick={() => setShowRole(true)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-purple-200 text-purple-600 hover:bg-purple-50 transition-colors"
+                >
+                  <ShieldAlert className="h-4 w-4" />
+                  Rôle
+                </button>
+                <button
                   onClick={() => setShowReset(true)}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
                 >
@@ -520,6 +637,8 @@ export default function AdminUserDetail() {
         )}
       </div>
 
+      <EditUserModal user={user} isOpen={showEdit} onClose={() => setShowEdit(false)} />
+      <ChangeRoleModal user={user} isOpen={showRole} onClose={() => setShowRole(false)} />
       <ResetPasswordModal userId={id} isOpen={showReset} onClose={() => setShowReset(false)} />
     </DashboardLayout>
   )

@@ -49,7 +49,6 @@ export default function Register() {
           prenom: data.prenom,
           telephone: data.telephone,
           role: 'ETUDIANT',
-          matricule: data.matricule,
         })
       } else {
         res = await authApi.register({
@@ -59,7 +58,6 @@ export default function Register() {
           prenom: data.prenom,
           telephone: data.telephone,
           role: 'ETUDIANT',
-          matricule: data.matricule,
         })
       }
       setStoredToken(res.token)

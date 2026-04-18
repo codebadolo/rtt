@@ -55,14 +55,6 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     )
     nom = models.CharField('Nom', max_length=100)
     prenom = models.CharField('Prénom', max_length=100)
-    matricule = models.CharField(
-        'Matricule étudiant', 
-        max_length=50, 
-        unique=True, 
-        null=True, 
-        blank=True,
-        help_text="Matricule pour les étudiants"
-    )
     telephone = models.CharField('Téléphone', max_length=20)
     
     # Gestion des rôles et permissions
@@ -103,7 +95,6 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         indexes = [
             models.Index(fields=['email']),
             models.Index(fields=['role']),
-            models.Index(fields=['matricule']),
         ]
         ordering = ['-date_inscription']
     
@@ -135,7 +126,6 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
         return self.role == self.Role.LIVREUR
 
     def save(self, *args, **kwargs):
-        # Mettre à jour is_staff pour les admins
         if self.role == 'ADMIN':
             self.is_staff = True
         super().save(*args, **kwargs)

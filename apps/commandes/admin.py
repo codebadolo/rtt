@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
 from django.db.models import Sum, Count
-from .models import Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, ClotureJournaliere, PaiementSenfenico
+from .models import Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, ClotureJournaliere, PaiementSenfenico, Plainte
 
 # ──────────────────── ADMIN LIGNE COMMANDE (INLINE) ────────────────────
 class OptionLigneCommandeInline(admin.TabularInline):
@@ -333,3 +333,63 @@ class PaiementSenfenicoAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# ──────────────────── ADMIN PLAINTE ────────────────────
+@admin.register(Plainte)
+class PlainteAdmin(admin.ModelAdmin):
+    list_display = ['id', 'etudiant_nom', 'categorie', 'sujet', 'statut_badge', 'date_creation']
+    list_filter = ['statut', 'categorie', 'date_creation']
+    search_fields = ['sujet', 'description', 'etudiant__nom', 'etudiant__prenom', 'etudiant__email']
+    ordering = ['-date_creation']
+    readonly_fields = ['etudiant', 'commande', 'categorie', 'sujet', 'description', 'date_creation', 'date_modification']
+
+    fieldsets = (
+        ('Plainte', {
+            'fields': ('etudiant', 'commande', 'categorie', 'sujet', 'description'),
+        }),
+        ('Traitement', {
+            'fields': ('statut', 'reponse_admin'),
+        }),
+        ('Dates', {
+            'fields': ('date_creation', 'date_modification'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def etudiant_nom(self, obj):
+        url = reverse('admin:authentification_utilisateur_change', args=[obj.etudiant.id])
+        return format_html('<a href="{}">{}</a>', url, obj.etudiant.get_full_name())
+    etudiant_nom.short_description = 'Étudiant'
+    etudiant_nom.admin_order_field = 'etudiant__nom'
+
+    def statut_badge(self, obj):
+        colors = {
+            'EN_ATTENTE': '#FF9800',
+            'EN_COURS':   '#2196F3',
+            'RESOLUE':    '#4CAF50',
+            'REJETEE':    '#F44336',
+        }
+        color = colors.get(obj.statut, '#9E9E9E')
+        return format_html(
+            '<span style="background: {}; color: white; padding: 2px 8px; border-radius: 4px;">{}</span>',
+            color, obj.get_statut_display()
+        )
+    statut_badge.short_description = 'Statut'
+
+    actions = ['marquer_en_cours', 'marquer_resolues', 'marquer_rejetees']
+
+    def marquer_en_cours(self, request, queryset):
+        updated = queryset.filter(statut='EN_ATTENTE').update(statut='EN_COURS')
+        self.message_user(request, f'{updated} plainte(s) marquée(s) en cours.')
+    marquer_en_cours.short_description = 'Marquer en cours de traitement'
+
+    def marquer_resolues(self, request, queryset):
+        updated = queryset.update(statut='RESOLUE')
+        self.message_user(request, f'{updated} plainte(s) marquée(s) résolue(s).')
+    marquer_resolues.short_description = 'Marquer comme résolues'
+
+    def marquer_rejetees(self, request, queryset):
+        updated = queryset.update(statut='REJETEE')
+        self.message_user(request, f'{updated} plainte(s) rejetée(s).')
+    marquer_rejetees.short_description = 'Marquer comme rejetées'

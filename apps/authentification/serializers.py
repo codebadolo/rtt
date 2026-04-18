@@ -34,12 +34,6 @@ class InscriptionGoogleSerializer(serializers.Serializer):
         choices=['ETUDIANT', 'LIVREUR', 'CHEF_SECTEUR', 'ADMIN'],
         required=True
     )
-    matricule = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        max_length=50
-    )
-    
     def validate_token(self, value):
         """
         Valide l'access_token Google via l'endpoint userinfo.
@@ -90,7 +84,6 @@ class InscriptionGoogleSerializer(serializers.Serializer):
             prenom=self.validated_data['prenom'],
             telephone=self.validated_data['telephone'],
             role=self.validated_data['role'],
-            matricule=self.validated_data.get('matricule') or None,
             google_id=token_info.get('sub'),
             photo_profil=token_info.get('picture'),
         )
@@ -205,7 +198,7 @@ class UtilisateurDetailSerializer(serializers.ModelSerializer):
         model = Utilisateur
         fields = [
             'id', 'email', 'nom', 'prenom', 'nom_complet',
-            'matricule', 'telephone', 'role',
+            'telephone', 'role',
             'est_actif', 'peut_commander',
             'date_naissance', 'adresse', 'photo_profil',
             'date_inscription', 'derniere_connexion'

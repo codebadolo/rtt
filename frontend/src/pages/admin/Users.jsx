@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import {
   Users, UserCheck, GraduationCap, Truck, ShieldCheck,
-  UserPlus, ToggleLeft, ToggleRight, Trash2, ShieldAlert,
+  UserPlus, ToggleLeft, ToggleRight, Trash2, ShieldAlert, Download,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -110,7 +110,6 @@ function CreateUserModal({ isOpen, onClose }) {
           </div>
           {field('telephone', 'Téléphone', { type: 'tel' })}
         </div>
-        {role === 'ETUDIANT' && field('matricule', 'Matricule')}
         {field('password', 'Mot de passe', { type: 'password', required: true, rules: { required: 'Requis', minLength: { value: 8, message: 'Min. 8 caractères' } } })}
 
         <div className="flex gap-3 pt-1">
@@ -182,6 +181,22 @@ const ROLE_FILTERS = [
   { value: 'CHEF_SECTEUR', label: 'Chefs secteur' },
   { value: 'LIVREUR', label: 'Livreurs' },
 ]
+
+function exportCsv(users) {
+  const headers = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Rôle', 'Statut', 'Inscrit le']
+  const rows = users.map((u) => [
+    u.prenom, u.nom, u.email, u.telephone ?? '',
+    ROLE_LABELS[u.role] ?? u.role,
+    u.est_actif ? 'Actif' : 'Inactif',
+    u.date_inscription ? new Date(u.date_inscription).toLocaleDateString('fr-FR') : '',
+  ])
+  const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'utilisateurs.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
 
 /* ── Main ── */
 export default function AdminUsers() {
@@ -314,13 +329,23 @@ export default function AdminUsers() {
             <h1 className="text-2xl font-extrabold text-gray-900">Utilisateurs</h1>
             <p className="text-gray-400 text-sm mt-0.5">Gestion des comptes de la plateforme</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
-          >
-            <UserPlus className="h-4 w-4" />
-            Nouvel utilisateur
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportCsv(all)}
+              title="Exporter CSV"
+              className="inline-flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              CSV
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm"
+            >
+              <UserPlus className="h-4 w-4" />
+              Nouvel utilisateur
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
