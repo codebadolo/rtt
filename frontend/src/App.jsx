@@ -45,6 +45,7 @@ import ChefComptabilite from './pages/chef/Comptabilite'
 
 // Livreur pages
 import LivreurDashboard from './pages/livreur/Dashboard'
+import LivreurHistory from './pages/livreur/History'
 
 function RootRedirect() {
   const { isAuthenticated, isLoading, user } = useAuthStore()
@@ -166,6 +167,7 @@ export default function App() {
           <ProtectedRoute allowedRoles={['LIVREUR', 'ADMIN']}>
             <Routes>
               <Route path="/" element={<LivreurDashboard />} />
+              <Route path="/historique" element={<LivreurHistory />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>

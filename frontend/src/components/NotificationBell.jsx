@@ -2,12 +2,20 @@ import { useState } from 'react'
 import { Bell, X, CheckCheck, Package } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useNotificationsStore from '../stores/notificationsStore'
+import useAuthStore from '../stores/authStore'
 import Badge from './Badge'
+
+function orderLink(role, commandeId) {
+  if (role === 'ADMIN')        return `/admin/commandes/${commandeId}`
+  if (role === 'CHEF_SECTEUR') return `/chef/commandes`
+  if (role === 'LIVREUR')      return `/livreur`
+  return `/etudiant/commandes/${commandeId}`
+}
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
-  const { notifications, unreadCount, markAllRead, markRead, remove } =
-    useNotificationsStore()
+  const { notifications, unreadCount, markAllRead, markRead, remove } = useNotificationsStore()
+  const role = useAuthStore((s) => s.user?.role)
 
   const handleOpen = () => {
     setOpen((v) => !v)
@@ -72,6 +80,7 @@ export default function NotificationBell() {
                   <NotifItem
                     key={notif.id}
                     notif={notif}
+                    role={role}
                     onRead={() => markRead(notif.id)}
                     onRemove={() => remove(notif.id)}
                     onClose={() => setOpen(false)}
@@ -86,7 +95,7 @@ export default function NotificationBell() {
   )
 }
 
-function NotifItem({ notif, onRead, onRemove, onClose }) {
+function NotifItem({ notif, role, onRead, onRemove, onClose }) {
   const handleClick = () => {
     onRead()
     onClose()
@@ -103,7 +112,7 @@ function NotifItem({ notif, onRead, onRemove, onClose }) {
       <div className="flex-1 min-w-0">
         {notif.commande_id ? (
           <Link
-            to={`/etudiant/commandes/${notif.commande_id}`}
+            to={orderLink(role, notif.commande_id)}
             onClick={handleClick}
             className="block"
           >

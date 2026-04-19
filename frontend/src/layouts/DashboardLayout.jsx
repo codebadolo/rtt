@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ClipboardList,
   CreditCard,
+  History,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -56,6 +57,7 @@ const navByRole = {
   ],
   LIVREUR: [
     { to: '/livreur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/livreur/historique', label: 'Historique', icon: History },
     { to: '/livreur/profil', label: 'Mon profil', icon: User },
   ],
 }
