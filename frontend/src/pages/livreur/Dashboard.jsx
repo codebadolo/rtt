@@ -75,19 +75,32 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
         {lignes.length > 0 && (
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">Articles à livrer ({lignes.length})</p>
-            <div className="space-y-1">
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
               {lignes.map((ligne, i) => (
-                <div key={ligne.id ?? i} className="flex justify-between text-sm text-gray-600 py-1 border-b border-gray-50 last:border-0">
-                  <span>{ligne.produit_nom ?? ligne.produit?.nom ?? 'Produit'} × {ligne.quantite ?? 1}</span>
-                  <span className="font-medium">
-                    {parseFloat((ligne.prix_unitaire ?? 0) * (ligne.quantite ?? 1)).toLocaleString('fr-FR')} F
+                <div key={ligne.id ?? i} className="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{ligne.produit_nom ?? ligne.produit?.nom ?? 'Produit'}</p>
+                    <p className="text-xs text-gray-400">{parseFloat(ligne.prix_unitaire ?? 0).toLocaleString('fr-FR')} F/u × {ligne.quantite ?? 1}</p>
+                  </div>
+                  <span className="font-semibold text-sm text-gray-800 flex-shrink-0">
+                    {parseFloat(ligne.sous_total ?? (ligne.prix_unitaire ?? 0) * (ligne.quantite ?? 1)).toLocaleString('fr-FR')} F
                   </span>
                 </div>
               ))}
             </div>
-            <div className="flex justify-between font-bold text-orange-500 mt-2 pt-2 border-t border-gray-100">
-              <span>Total</span>
-              <span>{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} FCFA</span>
+            <div className="mt-2 pt-2 space-y-1">
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Sous-total produits</span>
+                <span>{parseFloat(order.total_ht ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Frais de service</span>
+                <span>+ {parseFloat(order.frais_service ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between font-bold text-orange-500 pt-1 border-t border-gray-100">
+                <span>Total TTC</span>
+                <span>{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
             </div>
           </div>
         )}

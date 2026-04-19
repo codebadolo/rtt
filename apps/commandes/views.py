@@ -56,7 +56,8 @@ class CommandeViewSet(viewsets.ModelViewSet):
 
         if hasattr(user, 'est_livreur') and user.est_livreur:
             return queryset.filter(
-                Q(salle__livreur_1=user) | Q(salle__livreur_2=user)
+                Q(salle__livreur_1=user) | Q(salle__livreur_2=user),
+                statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE'],
             )
 
         return queryset.none()

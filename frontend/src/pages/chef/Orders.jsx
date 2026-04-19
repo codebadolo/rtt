@@ -103,22 +103,41 @@ function OrderModal({ order, isOpen, onClose }) {
               </p>
             )}
           </div>
-          <span className="ml-auto font-bold text-orange-600">{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} FCFA</span>
+          <span className="ml-auto font-medium text-blue-700 text-sm">{order.methode_paiement ?? '—'}</span>
         </div>
 
         {/* Articles */}
         {lignes.length > 0 && (
           <div>
             <p className="text-sm font-semibold text-gray-700 mb-2">Articles ({lignes.length})</p>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+            <div className="space-y-0 max-h-44 overflow-y-auto pr-1 border border-gray-100 rounded-xl">
               {lignes.map((l, i) => (
-                <div key={l.id ?? i} className="flex justify-between text-sm py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-700">{l.produit_nom ?? l.produit?.nom ?? 'Produit'} × {l.quantite ?? 1}</span>
-                  <span className="font-medium text-gray-800">
-                    {parseFloat((l.prix_unitaire ?? 0) * (l.quantite ?? 1)).toLocaleString('fr-FR')} F
+                <div key={l.id ?? i} className="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 last:border-0">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">{l.produit_nom ?? l.produit?.nom ?? 'Produit'}</span>
+                    {l.variante_nom && <span className="text-xs text-gray-400 ml-1">({l.variante_nom})</span>}
+                    <p className="text-xs text-gray-400">{parseFloat(l.prix_unitaire ?? 0).toLocaleString('fr-FR')} F/u × {l.quantite ?? 1}</p>
+                  </div>
+                  <span className="font-semibold text-gray-800 text-sm flex-shrink-0">
+                    {parseFloat(l.sous_total ?? (l.prix_unitaire ?? 0) * (l.quantite ?? 1)).toLocaleString('fr-FR')} F
                   </span>
                 </div>
               ))}
+            </div>
+            {/* Récapitulatif financier */}
+            <div className="mt-2 pt-2 space-y-1">
+              <div className="flex justify-between text-sm text-gray-500">
+                <span>Sous-total produits</span>
+                <span>{parseFloat(order.total_ht ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-500">
+                <span className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5" /> Frais de service</span>
+                <span>+ {parseFloat(order.frais_service ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
+              <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-100">
+                <span>Total TTC</span>
+                <span className="text-orange-500">{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} FCFA</span>
+              </div>
             </div>
           </div>
         )}

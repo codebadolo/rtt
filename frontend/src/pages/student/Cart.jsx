@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Clock } from 'lucide-react'
+import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Clock, Search, X, ChevronDown } from 'lucide-react'
+import orangeLogo from '../../Orange-Money-logo.jpg'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -12,11 +13,120 @@ import { ordersApi } from '../../api/orders'
 import { paymentsApi } from '../../api/payments'
 import { configApi } from '../../api/admin'
 
-const PAYMENT_METHODS = [
-  { value: 'ORANGE', label: 'Orange Money', emoji: '🟠' },
-  { value: 'MOOV',   label: 'Moov Money',   emoji: '🟢' },
-  { value: 'SANK',   label: 'Sank Money',   emoji: '🔵' },
-]
+
+/* ── Salle searchable picker ── */
+function SalleSearch({ rooms, value, onChange, error }) {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef(null)
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return rooms.filter(
+      (r) => r.nom?.toLowerCase().includes(q) ||
+             r.batiment?.toLowerCase().includes(q)
+    )
+  }, [rooms, search])
+
+  const selected = rooms.find((r) => String(r.id) === String(value))
+
+  const handleSelect = (room) => {
+    onChange(String(room.id))
+    setSearch('')
+    setOpen(false)
+  }
+
+  const handleClear = (e) => {
+    e.stopPropagation()
+    onChange('')
+    setSearch('')
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`input w-full flex items-center justify-between gap-2 text-left ${error ? 'border-red-400' : ''} ${open ? 'border-orange-400 ring-2 ring-orange-100' : ''}`}
+      >
+        {selected ? (
+          <span className="flex-1 truncate text-gray-800 text-sm">
+            {selected.nom}
+            {selected.batiment ? <span className="text-gray-400 text-xs ml-1">({selected.batiment})</span> : ''}
+          </span>
+        ) : (
+          <span className="flex-1 text-gray-400 text-sm">Choisir une salle…</span>
+        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {selected && (
+            <span onClick={handleClear} className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+          {/* Search input */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                autoFocus
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher une salle, bâtiment, secteur…"
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <X className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="max-h-60 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">Aucune salle trouvée</p>
+            ) : (
+              filtered.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => handleSelect(room)}
+                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-orange-50 transition-colors flex items-center justify-between gap-2 border-b border-gray-50 last:border-0 ${
+                    String(room.id) === String(value) ? 'bg-orange-50 text-orange-700 font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  <span>{room.nom}</span>
+                  {room.batiment && (
+                    <span className="text-xs text-gray-400 flex-shrink-0">{room.batiment}</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function StudentCart() {
   const { items, removeItem, updateQuantity, clearCart } = useCartStore()
@@ -28,6 +138,7 @@ export default function StudentCart() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -35,11 +146,9 @@ export default function StudentCart() {
     },
   })
 
-  const selectedMethode = watch('methode_paiement')
-
   const { data: roomsData } = useQuery({
     queryKey: ['rooms-all'],
-    queryFn: () => roomsApi.list({ est_actif: true }),
+    queryFn: () => roomsApi.list({ est_actif: true, page_size: 500 }),
   })
 
   const { data: config } = useQuery({
@@ -244,17 +353,13 @@ export default function StudentCart() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="label">Salle *</label>
-                    <select
-                      className={`input ${errors.salle ? 'border-red-400' : ''}`}
-                      {...register('salle', { required: 'Salle requise' })}
-                    >
-                      <option value="">Choisir une salle</option>
-                      {rooms.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.nom}{r.batiment ? ` (${r.batiment})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <input type="hidden" {...register('salle', { required: 'Salle requise' })} />
+                    <SalleSearch
+                      rooms={rooms}
+                      value={watch('salle') ?? ''}
+                      onChange={(v) => setValue('salle', v, { shouldValidate: true })}
+                      error={!!errors.salle}
+                    />
                     {errors.salle && <p className="form-error">{errors.salle.message}</p>}
                   </div>
 
@@ -289,35 +394,18 @@ export default function StudentCart() {
                   </span>
                 </div>
 
-                <div>
-                  <label className="label">Opérateur *</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {PAYMENT_METHODS.map((method) => (
-                      <label
-                        key={method.value}
-                        className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                          selectedMethode === method.value
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          value={method.value}
-                          className="sr-only"
-                          {...register('methode_paiement', { required: true })}
-                        />
-                        <span className="text-lg">{method.emoji}</span>
-                        <span className="text-xs font-medium text-gray-700 text-center leading-tight">
-                          {method.label}
-                        </span>
-                      </label>
-                    ))}
+                {/* Orange Money — seul opérateur disponible */}
+                <input type="hidden" value="ORANGE" {...register('methode_paiement')} />
+                <div className="flex items-center gap-4 p-4 rounded-2xl border-2 border-orange-400 bg-orange-50">
+                  <img src={orangeLogo} alt="Orange Money" className="h-12 w-12 rounded-xl object-cover flex-shrink-0" />
+                  <div>
+                    <p className="font-bold text-orange-700">Orange Money</p>
+                    <p className="text-xs text-orange-500 mt-0.5">Paiement sécurisé via Senfenico</p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="label">Numéro de téléphone *</label>
+                  <label className="label">Numéro Orange Money *</label>
                   <input
                     type="tel"
                     placeholder="Ex: 07 00 00 00 00"
