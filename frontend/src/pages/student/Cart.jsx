@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
@@ -6,8 +6,6 @@ import { Trash2, Plus, Minus, ShoppingCart, ArrowRight, Clock } from 'lucide-rea
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
-import LoadingSpinner from '../../components/LoadingSpinner'
-import SenfenicoOTPModal from '../../components/SenfenicoOTPModal'
 import useCartStore from '../../stores/cartStore'
 import { roomsApi } from '../../api/sectors'
 import { ordersApi } from '../../api/orders'
@@ -25,9 +23,6 @@ export default function StudentCart() {
   const total = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-
-  // État pour le modal OTP Senfenico
-  const [senfenicoModal, setSenfenicoModal] = useState(null) // { commandeId, chargeInfo }
 
   const {
     register,
@@ -81,19 +76,15 @@ export default function StudentCart() {
   // Mutation 2 : initier le paiement Senfenico après création de la commande
   const initierPaiementMutation = useMutation({
     mutationFn: (commandeId) => paymentsApi.initierPaiement(commandeId),
-    onSuccess: (chargeInfo, commandeId) => {
+    onSuccess: (_, commandeId) => {
       queryClient.invalidateQueries({ queryKey: ['student-orders'] })
-      if (chargeInfo.statut === 'pay_offline') {
-        // Paiement hors-ligne : on montre le modal avec instructions
-        setSenfenicoModal({ commandeId, chargeInfo })
-      } else {
-        // send_otp : on montre le modal OTP
-        setSenfenicoModal({ commandeId, chargeInfo })
-      }
+      navigate(`/etudiant/commandes/${commandeId}`)
     },
-    onError: (err) => {
+    onError: (err, commandeId) => {
       const msg = err.response?.data?.error ?? 'Erreur lors de l\'initiation du paiement'
       toast.error(msg)
+      // Redirige quand même vers la commande
+      navigate(`/etudiant/commandes/${commandeId}`)
     },
   })
 
@@ -102,7 +93,6 @@ export default function StudentCart() {
     mutationFn: (data) => ordersApi.create(data),
     onSuccess: (order) => {
       clearCart()
-      // Initier immédiatement le paiement Senfenico
       initierPaiementMutation.mutate(order.id)
     },
     onError: (err) => {
@@ -138,11 +128,6 @@ export default function StudentCart() {
     })
   }
 
-  const handlePaiementSuccess = () => {
-    setSenfenicoModal(null)
-    navigate(`/etudiant/commandes/${senfenicoModal.commandeId}`)
-  }
-
   const isSubmitting = orderMutation.isPending || initierPaiementMutation.isPending
   const canOrder = !commandesFermees
 
@@ -169,19 +154,6 @@ export default function StudentCart() {
 
   return (
     <DashboardLayout>
-      {/* Modal OTP Senfenico */}
-      {senfenicoModal && (
-        <SenfenicoOTPModal
-          commandeId={senfenicoModal.commandeId}
-          chargeInfo={senfenicoModal.chargeInfo}
-          onSuccess={handlePaiementSuccess}
-          onClose={() => {
-            setSenfenicoModal(null)
-            navigate(`/etudiant/commandes/${senfenicoModal.commandeId}`)
-          }}
-        />
-      )}
-
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mon panier</h1>

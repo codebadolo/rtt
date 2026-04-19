@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
   ArrowLeft,
+  CheckCircle,
   CheckCircle2,
   Clock,
   CreditCard,
@@ -17,10 +18,10 @@ import {
 import toast from 'react-hot-toast'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ordersApi } from '../../api/orders'
+import { paymentsApi } from '../../api/payments'
 import Badge from '../../components/Badge'
 import Breadcrumb from '../../components/Breadcrumb'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import SenfenicoOTPModal from '../../components/SenfenicoOTPModal'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { printReceipt } from '../../utils/receipt'
 import { formatDateTime } from '../../utils/dates'
@@ -59,11 +60,27 @@ export default function StudentOrderDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [showOtpModal, setShowOtpModal] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
 
   const { data: order, isLoading } = useQuery({
     queryKey: ['order', id],
     queryFn: () => ordersApi.get(id),
+    refetchInterval: (data) => {
+      const s = data?.paiement_senfenico?.statut
+      return (s === 'send_otp' || s === 'pay_offline' || s === 'pending') ? 8000 : false
+    },
+  })
+
+  const otpMutation = useMutation({
+    mutationFn: () => paymentsApi.soumettreOtp(id, otpCode),
+    onSuccess: () => {
+      toast.success('Paiement confirmé ! Commande validée.')
+      setOtpCode('')
+      queryClient.invalidateQueries({ queryKey: ['order', id] })
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error ?? 'Code OTP invalide, réessayez.')
+    },
   })
 
   const cancelMutation = useMutation({
@@ -110,18 +127,6 @@ export default function StudentOrderDetail() {
 
   return (
     <DashboardLayout>
-      {showOtpModal && paiement && (
-        <SenfenicoOTPModal
-          commandeId={order.id}
-          chargeInfo={paiement}
-          onSuccess={() => {
-            setShowOtpModal(false)
-            queryClient.invalidateQueries({ queryKey: ['order', id] })
-            navigate(`/etudiant/commandes/${order.id}`)
-          }}
-          onClose={() => setShowOtpModal(false)}
-        />
-      )}
       <div className="max-w-2xl mx-auto space-y-6">
         <Breadcrumb items={[{ label: 'Mes commandes', to: '/etudiant/commandes' }, { label: order.numero_commande }]} />
 
@@ -254,13 +259,87 @@ export default function StudentOrderDetail() {
           )}
         </div>
 
-        {/* Statut paiement Senfenico */}
+        {/* Section paiement Senfenico */}
         {paiement && (() => {
           const cfg  = PAY_STATUS[paiement.statut] ?? PAY_STATUS.pending
           const Icon = cfg.icon
+
+          // Cas OTP : saisie directe inline
+          if (canSaisirOtp) {
+            return (
+              <div className="border-2 border-blue-300 bg-blue-50 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Smartphone className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-blue-800">Confirmez votre paiement</p>
+                    <p className="text-xs text-blue-500 font-mono">{paiement.charge_reference}</p>
+                  </div>
+                </div>
+
+                {paiement.display_text && (
+                  <div className="bg-white border border-blue-200 rounded-xl px-4 py-3">
+                    <p className="text-sm text-gray-700 leading-relaxed">{paiement.display_text}</p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-blue-800">
+                    Entrez le code OTP reçu par SMS *
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={8}
+                    placeholder="Ex : 123456"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-blue-300 bg-white text-center text-xl font-mono tracking-widest outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-colors"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    disabled={otpMutation.isPending}
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  onClick={() => otpMutation.mutate()}
+                  disabled={otpCode.length < 4 || otpMutation.isPending}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {otpMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Vérification…</>
+                  ) : (
+                    <><CheckCircle className="h-4 w-4" /> Confirmer le paiement</>
+                  )}
+                </button>
+              </div>
+            )
+          }
+
+          // Cas pay_offline : validation depuis le téléphone
+          if (paiement.statut === 'pay_offline' || paiement.statut === 'pending_payment') {
+            return (
+              <div className={`border rounded-2xl p-5 ${cfg.bg}`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <Loader2 className={`h-5 w-5 flex-shrink-0 animate-spin ${cfg.cls}`} />
+                  <div>
+                    <p className={`font-semibold text-sm ${cfg.cls}`}>Validation en attente</p>
+                    <p className="text-xs text-gray-400 font-mono">{paiement.charge_reference}</p>
+                  </div>
+                </div>
+                {paiement.display_text && (
+                  <p className="text-sm text-gray-700 leading-relaxed">{paiement.display_text}</p>
+                )}
+                <p className="text-xs text-gray-400 mt-2">Cette page se met à jour automatiquement.</p>
+              </div>
+            )
+          }
+
+          // Autres statuts : juste le badge
           return (
             <div className={`border rounded-xl p-4 ${cfg.bg}`}>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3">
                 <Icon className={`h-5 w-5 flex-shrink-0 ${cfg.cls} ${cfg.spin ? 'animate-spin' : ''}`} />
                 <div>
                   <p className={`font-semibold text-sm ${cfg.cls}`}>{cfg.label}</p>
@@ -268,7 +347,7 @@ export default function StudentOrderDetail() {
                 </div>
               </div>
               {paiement.display_text && (
-                <p className="text-sm text-gray-700 leading-relaxed">{paiement.display_text}</p>
+                <p className="text-sm text-gray-700 leading-relaxed mt-2">{paiement.display_text}</p>
               )}
             </div>
           )
@@ -276,15 +355,6 @@ export default function StudentOrderDetail() {
 
         {/* Actions */}
         <div className="flex gap-3 flex-wrap">
-          {canSaisirOtp && (
-            <button
-              onClick={() => setShowOtpModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-50 border border-blue-200 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-            >
-              <Smartphone className="h-4 w-4" />
-              Saisir le code OTP
-            </button>
-          )}
           {canPrint && (
             <button
               onClick={() => printReceipt(order)}
