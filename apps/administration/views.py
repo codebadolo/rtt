@@ -533,9 +533,13 @@ def configuration_view(request):
 def comptabilite_view(request):
     """
     GET /api/admin/comptabilite/?periode=today|week|month|all
-    Statistiques financières pour l'administration.
+    Statistiques financières pour l'administration et les chefs de secteur.
+    Les chefs voient uniquement les données de leurs secteurs.
     """
-    if not (request.user.is_authenticated and hasattr(request.user, 'est_admin') and request.user.est_admin):
+    user = request.user
+    is_admin = user.is_authenticated and hasattr(user, 'est_admin') and user.est_admin
+    is_chef = user.is_authenticated and hasattr(user, 'est_chef_secteur') and user.est_chef_secteur
+    if not (is_admin or is_chef):
         return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
 
     from datetime import timedelta
@@ -559,6 +563,11 @@ def comptabilite_view(request):
     qs_base = Commande.objects.filter(statut__in=statuts_encaissees)
     qs_all = Commande.objects.all()
 
+    # Chefs voient uniquement leurs secteurs
+    if is_chef and not is_admin:
+        qs_base = qs_base.filter(secteur__chefs=user)
+        qs_all = qs_all.filter(secteur__chefs=user)
+
     if date_debut:
         qs_base = qs_base.filter(date_creation__date__gte=date_debut)
         qs_all = qs_all.filter(date_creation__date__gte=date_debut)
@@ -580,7 +589,10 @@ def comptabilite_view(request):
 
     # Par secteur
     par_secteur = []
-    for secteur in Secteur.objects.filter(est_actif=True):
+    secteurs_qs = Secteur.objects.filter(est_actif=True)
+    if is_chef and not is_admin:
+        secteurs_qs = secteurs_qs.filter(chefs=user)
+    for secteur in secteurs_qs:
         qs_s = qs_base.filter(secteur=secteur)
         agg_s = qs_s.aggregate(
             nb=Count('id'),

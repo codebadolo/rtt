@@ -6,12 +6,13 @@ import {
 } from 'recharts'
 import {
   BarChart3, TrendingUp, ShoppingBag, Percent,
-  CheckCircle2, Clock, XCircle, ChevronDown, DoorOpen,
+  CheckCircle2, Clock, XCircle, ChevronDown, DoorOpen, CreditCard,
 } from 'lucide-react'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { comptabiliteApi } from '../../api/admin'
+import { paymentsApi } from '../../api/payments'
 
 const PERIODES = [
   { value: 'today', label: "Aujourd'hui" },
@@ -49,6 +50,124 @@ function CustomTooltip({ active, payload, label }) {
   )
 }
 
+const SF_CFG = {
+  send_otp:    { cls: 'bg-amber-100 text-amber-700',  label: 'Attente OTP'  },
+  pay_offline: { cls: 'bg-sky-100 text-sky-700',      label: 'Hors ligne'   },
+  success:     { cls: 'bg-green-100 text-green-700',  label: 'Succès'       },
+  failed:      { cls: 'bg-red-100 text-red-700',      label: 'Échoué'       },
+  pending:     { cls: 'bg-gray-100 text-gray-500',    label: 'En attente'   },
+}
+
+const METHODE_CFG = {
+  ORANGE: { label: 'Orange Money', cls: 'bg-orange-100 text-orange-700' },
+  MOOV:   { label: 'Moov Money',   cls: 'bg-blue-100 text-blue-700'     },
+  SANK:   { label: 'Sank Money',   cls: 'bg-indigo-100 text-indigo-700' },
+}
+
+function PaiementsTab({ paiements, isLoading, statut, onStatutChange }) {
+  const STATUTS = [
+    { value: '', label: 'Tous' },
+    { value: 'success',     label: 'Succès'      },
+    { value: 'send_otp',   label: 'Attente OTP' },
+    { value: 'pay_offline', label: 'Hors ligne'  },
+    { value: 'failed',     label: 'Échoués'     },
+  ]
+
+  const totalSuccess = paiements
+    .filter((p) => p.statut === 'success')
+    .reduce((s, p) => s + parseFloat(p.montant ?? 0), 0)
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap">
+        {STATUTS.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onStatutChange(s.value)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+              statut === s.value
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Summary */}
+      <div className="bg-green-50 border border-green-100 rounded-2xl px-5 py-3 flex items-center justify-between">
+        <span className="text-sm font-medium text-green-700">Total encaissé (succès)</span>
+        <span className="font-bold text-green-700 text-lg">{fmt(totalSuccess)} FCFA</span>
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <LoadingSpinner className="py-16" size="lg" />
+      ) : paiements.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl text-center py-16 shadow-sm">
+          <CreditCard className="h-12 w-12 text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-500 font-medium">Aucun paiement trouvé</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Commande</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Étudiant</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Méthode</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Statut</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Montant</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase hidden lg:table-cell">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paiements.map((p) => {
+                  const sf = SF_CFG[p.statut] ?? SF_CFG.pending
+                  const meth = METHODE_CFG[p.methode_paiement]
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-mono font-bold text-xs text-gray-700">{p.numero_commande}</p>
+                        {p.secteur_nom && (
+                          <p className="text-xs text-gray-400 mt-0.5">{p.secteur_nom}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <p className="text-gray-700">{p.etudiant_nom}</p>
+                        {p.telephone && <p className="text-xs text-gray-400">{p.telephone}</p>}
+                      </td>
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        {meth ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${meth.cls}`}>{meth.label}</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">{p.methode_paiement ?? '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sf.cls}`}>{sf.label}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                        {fmt(p.montant)} F
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-gray-400 hidden lg:table-cell">
+                        {new Date(p.date_creation).toLocaleDateString('fr-FR')}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ChefComptabilite() {
   const [periode, setPeriode] = useState('month')
   const [tab, setTab] = useState('stats')
@@ -58,14 +177,22 @@ export default function ChefComptabilite() {
     queryFn: () => comptabiliteApi.get(periode),
   })
 
+  const [paiementStatut, setPaiementStatut] = useState('')
+  const { data: paiementsData, isLoading: paiementsLoading } = useQuery({
+    queryKey: ['chef-paiements', paiementStatut],
+    queryFn: () => paymentsApi.charges(paiementStatut ? { statut: paiementStatut } : {}),
+    enabled: tab === 'paiements',
+  })
+
   const r = data?.resume ?? {}
   const evolution = data?.evolution ?? []
   const parSalle = data?.par_salle ?? []
   const taux = data?.taux_service ?? 10
 
   const TABS = [
-    { id: 'stats',  label: 'Vue globale', icon: BarChart3 },
-    { id: 'salles', label: 'Par salle',   icon: DoorOpen },
+    { id: 'stats',    label: 'Vue globale', icon: BarChart3  },
+    { id: 'salles',   label: 'Par salle',   icon: DoorOpen   },
+    { id: 'paiements', label: 'Paiements',  icon: CreditCard },
   ]
 
   return (
@@ -166,6 +293,15 @@ export default function ChefComptabilite() {
                   </div>
                 )}
               </div>
+            )}
+
+            {tab === 'paiements' && (
+              <PaiementsTab
+                paiements={paiementsData?.results ?? []}
+                isLoading={paiementsLoading}
+                statut={paiementStatut}
+                onStatutChange={setPaiementStatut}
+              />
             )}
 
             {tab === 'salles' && (

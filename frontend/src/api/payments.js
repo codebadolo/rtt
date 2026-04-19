@@ -15,7 +15,7 @@ export const paymentsApi = {
   soumettreOtp: (commandeId, otp) =>
     client.post(`/commandes/${commandeId}/soumettre-otp/`, { otp }).then((r) => r.data),
 
-  // Liste des charges Senfenico (admin)
+  // Liste des charges Senfenico (admin + chefs de secteur)
   charges: (params) =>
     client.get('/paiements/charges/', { params }).then((r) => r.data),
 }

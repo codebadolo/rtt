@@ -126,19 +126,21 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
 
 
 class PaiementSenfenicoSerializer(serializers.ModelSerializer):
-    numero_commande = serializers.CharField(source='commande.numero_commande', read_only=True)
-    commande_id     = serializers.IntegerField(source='commande.id', read_only=True)
-    commande_statut = serializers.CharField(source='commande.statut', read_only=True)
-    etudiant_nom    = serializers.SerializerMethodField()
-    montant         = serializers.DecimalField(source='commande.total_ttc', max_digits=12, decimal_places=2, read_only=True)
+    numero_commande  = serializers.CharField(source='commande.numero_commande', read_only=True)
+    commande_id      = serializers.IntegerField(source='commande.id', read_only=True)
+    commande_statut  = serializers.CharField(source='commande.statut', read_only=True)
+    etudiant_nom     = serializers.SerializerMethodField()
+    montant          = serializers.DecimalField(source='commande.total_ttc', max_digits=12, decimal_places=2, read_only=True)
     methode_paiement = serializers.CharField(source='commande.methode_paiement', read_only=True)
-    telephone       = serializers.CharField(source='commande.telephone_paiement', read_only=True)
+    telephone        = serializers.CharField(source='commande.telephone_paiement', read_only=True)
+    secteur_nom      = serializers.CharField(source='commande.secteur.nom', read_only=True, default='—')
 
     class Meta:
         model = PaiementSenfenico
         fields = [
             'id', 'numero_commande', 'commande_id', 'commande_statut',
             'etudiant_nom', 'montant', 'methode_paiement', 'telephone',
+            'secteur_nom',
             'charge_reference', 'statut', 'display_text',
             'date_creation', 'date_modification',
         ]

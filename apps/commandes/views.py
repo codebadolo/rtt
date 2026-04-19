@@ -277,14 +277,26 @@ class CommandeViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([EstAdmin])
+@permission_classes([IsAuthenticated])
 def senfenico_charges_list(request):
     """
-    Liste toutes les charges Senfenico (admin uniquement).
+    Liste les charges Senfenico.
+    Admins : toutes les charges.
+    Chefs de secteur : charges des commandes de leurs secteurs.
     """
+    user = request.user
+    is_admin = hasattr(user, 'est_admin') and user.est_admin
+    is_chef = hasattr(user, 'est_chef_secteur') and user.est_chef_secteur
+
+    if not (is_admin or is_chef):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
     qs = PaiementSenfenico.objects.select_related(
-        'commande', 'commande__etudiant'
+        'commande', 'commande__etudiant', 'commande__secteur'
     ).order_by('-date_creation')
+
+    if is_chef and not is_admin:
+        qs = qs.filter(commande__secteur__chefs=user)
 
     statut = request.query_params.get('statut')
     if statut:
