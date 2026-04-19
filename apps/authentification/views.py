@@ -231,9 +231,18 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticated]
         return [permission() for permission in self.permission_classes]
     
+    def create(self, request, *args, **kwargs):
+        serializer = InscriptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(
+            UtilisateurDetailSerializer(user).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     def get_queryset(self):
         queryset = super().get_queryset()
-        
+
         # Filtrer par rôle si le paramètre est présent
         role = self.request.query_params.get('role')
         if role:
