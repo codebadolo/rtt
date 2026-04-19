@@ -50,6 +50,9 @@ export const roomsApi = {
 
   getLivreurs: (id) =>
     client.get(`/salles/${id}/livreurs/`).then((r) => r.data),
+
+  assignLivreurs: (id, data) =>
+    client.patch(`/salles/${id}/assigner-livreurs/`, data).then((r) => r.data),
 }
 
 export const horairesApi = {

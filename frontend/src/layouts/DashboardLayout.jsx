@@ -14,6 +14,7 @@ import {
   Settings,
   ShoppingBag,
   ShoppingCart,
+  Truck,
   User,
   Users,
   Utensils,
@@ -52,6 +53,7 @@ const navByRole = {
   CHEF_SECTEUR: [
     { to: '/chef', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
     { to: '/chef/commandes', label: 'Commandes', icon: ClipboardList },
+    { to: '/chef/livreurs', label: 'Livreurs', icon: Truck },
     { to: '/chef/comptabilite', label: 'Comptabilité', icon: BarChart3 },
     { to: '/chef/profil', label: 'Mon profil', icon: User },
   ],

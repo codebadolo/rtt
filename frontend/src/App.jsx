@@ -42,6 +42,7 @@ import AdminComplaints from './pages/admin/Complaints'
 import ChefDashboard from './pages/chef/Dashboard'
 import ChefOrders from './pages/chef/Orders'
 import ChefComptabilite from './pages/chef/Comptabilite'
+import ChefLivreurs from './pages/chef/Livreurs'
 
 // Livreur pages
 import LivreurDashboard from './pages/livreur/Dashboard'
@@ -154,6 +155,7 @@ export default function App() {
               <Route path="/" element={<ChefDashboard />} />
               <Route path="/commandes" element={<ChefOrders />} />
               <Route path="/comptabilite" element={<ChefComptabilite />} />
+              <Route path="/livreurs" element={<ChefLivreurs />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>

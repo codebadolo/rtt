@@ -159,29 +159,59 @@ class SalleViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'], url_path='livreurs')
     def livreurs(self, request, pk=None):
-        """
-        Récupère les livreurs d'une salle
-        """
         salle = self.get_object()
         livreurs = []
-        
         if salle.livreur_1:
             livreurs.append({
-                'id': salle.livreur_1.id,
+                'id': salle.livreur_1.id, 'slot': 1,
                 'nom': salle.livreur_1.get_full_name(),
                 'email': salle.livreur_1.email,
-                'telephone': salle.livreur_1.telephone
+                'telephone': salle.livreur_1.telephone,
             })
-        
         if salle.livreur_2:
             livreurs.append({
-                'id': salle.livreur_2.id,
+                'id': salle.livreur_2.id, 'slot': 2,
                 'nom': salle.livreur_2.get_full_name(),
                 'email': salle.livreur_2.email,
-                'telephone': salle.livreur_2.telephone
+                'telephone': salle.livreur_2.telephone,
             })
-        
         return Response(livreurs)
+
+    @action(detail=True, methods=['patch'], url_path='assigner-livreurs',
+            permission_classes=[EstChefSecteurOuAdmin])
+    def assigner_livreurs(self, request, pk=None):
+        """
+        Assigne livreur_1 et/ou livreur_2 à une salle.
+        Accessible aux chefs de secteur (pour leurs secteurs) et aux admins.
+        Body: { "livreur_1": <id|null>, "livreur_2": <id|null> }
+        """
+        from apps.authentification.models import Utilisateur as U
+        salle = self.get_object()
+
+        if request.user.est_chef_secteur:
+            if not salle.secteur.chefs.filter(id=request.user.id).exists():
+                return Response({'error': 'Vous ne gérez pas ce secteur'},
+                                status=status.HTTP_403_FORBIDDEN)
+
+        update_fields = []
+        for slot in ('livreur_1', 'livreur_2'):
+            if slot not in request.data:
+                continue
+            val = request.data[slot]
+            if val is None or val == '':
+                setattr(salle, slot, None)
+            else:
+                try:
+                    livreur = U.objects.get(id=val, role='LIVREUR')
+                    setattr(salle, slot, livreur)
+                except U.DoesNotExist:
+                    return Response({'error': f'{slot} introuvable'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            update_fields.append(slot)
+
+        if update_fields:
+            salle.save(update_fields=update_fields)
+        return Response(SalleDetailSerializer(salle).data)
 
 
 # ──────────────────── VIEWSET PRODUIT ────────────────────
