@@ -295,7 +295,8 @@ export default function StudentCart() {
 
   const isSubmitting = orderMutation.isPending || initierPaiementMutation.isPending
   const itemsInactifs = items.filter((item) => item.product.est_actif === false)
-  const canOrder = !commandesFermees && itemsInactifs.length === 0
+  const montantInsuffisant = totalTTC < 100
+  const canOrder = !commandesFermees && itemsInactifs.length === 0 && !montantInsuffisant
 
   if (items.length === 0) {
     return (
@@ -537,6 +538,12 @@ export default function StudentCart() {
                     <span className="text-primary-500">{totalTTC.toLocaleString('fr-FR')} FCFA</span>
                   </div>
                 </div>
+
+                {montantInsuffisant && (
+                  <p className="text-sm text-red-500 text-center font-medium">
+                    Montant minimum de commande : 100 FCFA
+                  </p>
+                )}
 
                 <button
                   type="submit"

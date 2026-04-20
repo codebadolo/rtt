@@ -47,6 +47,16 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         ouvert, message = config.commandes_sont_ouvertes()
         if not ouvert:
             raise serializers.ValidationError({'detail': message})
+
+        lignes = data.get('lignes', [])
+        total_ht = sum(
+            (l.get('prix_unitaire') or (l['variante'].prix if l.get('variante') else l['produit'].prix_base))
+            * l['quantite']
+            for l in lignes
+        )
+        if total_ht < 100:
+            raise serializers.ValidationError({'detail': 'Le montant minimum de commande est de 100 FCFA.'})
+
         return data
 
     def create(self, validated_data):
