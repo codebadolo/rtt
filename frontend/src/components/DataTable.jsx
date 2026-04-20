@@ -56,6 +56,7 @@ export default function DataTable({
   onRowClick,
   search,
   onSearchChange,
+  getRowClass,
 }) {
   const [sortKey, setSortKey] = useState(null)
   const [sortDir, setSortDir] = useState('asc')
@@ -155,6 +156,7 @@ export default function DataTable({
                   className={[
                     'border-b border-gray-50 transition-colors group',
                     onRowClick ? 'cursor-pointer hover:bg-orange-50/40' : 'hover:bg-gray-50/60',
+                    getRowClass ? getRowClass(row) : '',
                   ].join(' ')}
                 >
                   {columns.map((col) => (

@@ -1,14 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import { Settings, Percent, Save, Clock } from 'lucide-react'
-import { useEffect } from 'react'
+import { Settings, Percent, Save, Clock, Calendar } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import { configApi } from '../../api/admin'
 
+const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+
+const defaultHoraires = () =>
+  JOURS.map((_, i) => ({ jour: i, actif: true, heure_ouverture: '', heure_fermeture: '' }))
+
 export default function AdminConfiguration() {
   const queryClient = useQueryClient()
+  const [horaires, setHoraires] = useState(defaultHoraires())
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['configuration'],
@@ -20,7 +26,7 @@ export default function AdminConfiguration() {
     handleSubmit,
     watch,
     reset,
-    formState: { errors, isDirty },
+    formState: { errors },
   } = useForm({ defaultValues: { taux_service: 10 } })
 
   useEffect(() => {
@@ -28,10 +34,17 @@ export default function AdminConfiguration() {
       reset({
         taux_service: config.taux_service,
         commandes_actives: config.commandes_actives,
-        heure_ouverture: config.heure_ouverture ?? '',
-        heure_fermeture: config.heure_fermeture ?? '',
         horaires_actifs: config.horaires_actifs ?? true,
       })
+      if (config.horaires_semaine?.length > 0) {
+        const filled = defaultHoraires().map((def) => {
+          const found = config.horaires_semaine.find((h) => h.jour === def.jour)
+          return found
+            ? { ...def, actif: found.actif, heure_ouverture: found.heure_ouverture ?? '', heure_fermeture: found.heure_fermeture ?? '' }
+            : def
+        })
+        setHoraires(filled)
+      }
     }
   }, [config, reset])
 
@@ -49,6 +62,22 @@ export default function AdminConfiguration() {
   const exemple = 1000
   const fraisService = Math.round(exemple * taux / 100)
 
+  function onSubmit(data) {
+    mutation.mutate({
+      ...data,
+      horaires_semaine: horaires.map((h) => ({
+        jour: h.jour,
+        actif: h.actif,
+        heure_ouverture: h.heure_ouverture || null,
+        heure_fermeture: h.heure_fermeture || null,
+      })),
+    })
+  }
+
+  function updateHoraire(jour, field, value) {
+    setHoraires((prev) => prev.map((h) => h.jour === jour ? { ...h, [field]: value } : h))
+  }
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -61,7 +90,7 @@ export default function AdminConfiguration() {
 
   return (
     <DashboardLayout>
-      <form onSubmit={handleSubmit((d) => mutation.mutate(d))}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <div className="space-y-6 max-w-2xl">
           <Breadcrumb
             items={[{ label: 'Dashboard', to: '/admin' }, { label: 'Configuration' }]}
@@ -76,7 +105,7 @@ export default function AdminConfiguration() {
             </div>
             <button
               type="submit"
-              disabled={mutation.isPending || !isDirty}
+              disabled={mutation.isPending}
               className="btn-primary"
             >
               <Save className="h-4 w-4" />
@@ -124,11 +153,11 @@ export default function AdminConfiguration() {
             </div>
           </div>
 
-          {/* Horaires d'ouverture */}
+          {/* Contrôle global */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 text-primary-600">
               <Clock className="h-5 w-5" />
-              <h2 className="font-semibold text-base">Horaires d'ouverture</h2>
+              <h2 className="font-semibold text-base">Contrôle des commandes</h2>
             </div>
             <div className="p-6 space-y-5">
               <div className="flex items-center justify-between">
@@ -139,11 +168,7 @@ export default function AdminConfiguration() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    {...register('commandes_actives')}
-                  />
+                  <input type="checkbox" className="sr-only peer" {...register('commandes_actives')} />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
                 </label>
               </div>
@@ -156,39 +181,61 @@ export default function AdminConfiguration() {
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    {...register('horaires_actifs')}
-                  />
+                  <input type="checkbox" className="sr-only peer" {...register('horaires_actifs')} />
                   <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
                 </label>
               </div>
+            </div>
+          </div>
 
-              <p className="text-sm text-gray-500">
-                Définissez une plage horaire pendant laquelle les commandes sont acceptées.
-                En dehors de cette plage, les commandes seront automatiquement bloquées.
-                Laissez les deux champs vides pour ne pas appliquer de restriction horaire.
-              </p>
+          {/* Horaires par jour */}
+          <div className={`bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden transition-opacity ${horairesActifs ? '' : 'opacity-50 pointer-events-none'}`}>
+            <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 text-primary-600">
+              <Calendar className="h-5 w-5" />
+              <h2 className="font-semibold text-base">Horaires par jour</h2>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {horaires.map((h) => (
+                <div key={h.jour} className="flex items-center gap-4 px-6 py-3">
+                  <div className="w-24 flex items-center gap-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={h.actif}
+                        onChange={(e) => updateHoraire(h.jour, 'actif', e.target.checked)}
+                      />
+                      <div className="w-9 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:bg-primary-500 transition-colors after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4" />
+                    </label>
+                    <span className={`text-sm font-medium ${h.actif ? 'text-gray-800' : 'text-gray-400'}`}>
+                      {JOURS[h.jour]}
+                    </span>
+                  </div>
 
-              <div className={`grid grid-cols-2 gap-4 transition-opacity ${horairesActifs ? '' : 'opacity-40 pointer-events-none'}`}>
-                <div>
-                  <label className="label">Heure d'ouverture</label>
-                  <input
-                    type="time"
-                    className="input"
-                    {...register('heure_ouverture')}
-                  />
+                  <div className={`flex items-center gap-3 flex-1 transition-opacity ${h.actif ? '' : 'opacity-40 pointer-events-none'}`}>
+                    <div>
+                      <input
+                        type="time"
+                        className="input text-sm py-1.5"
+                        value={h.heure_ouverture}
+                        onChange={(e) => updateHoraire(h.jour, 'heure_ouverture', e.target.value)}
+                      />
+                    </div>
+                    <span className="text-gray-400 text-sm">→</span>
+                    <div>
+                      <input
+                        type="time"
+                        className="input text-sm py-1.5"
+                        value={h.heure_fermeture}
+                        onChange={(e) => updateHoraire(h.jour, 'heure_fermeture', e.target.value)}
+                      />
+                    </div>
+                    {!h.heure_ouverture && !h.heure_fermeture && h.actif && (
+                      <span className="text-xs text-gray-400">Pas de restriction horaire</span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Heure de fermeture</label>
-                  <input
-                    type="time"
-                    className="input"
-                    {...register('heure_fermeture')}
-                  />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 

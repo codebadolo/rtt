@@ -413,14 +413,29 @@ class Configuration(models.Model):
         """Retourne (bool, message) selon les horaires et le flag commandes_actives."""
         if not self.commandes_actives:
             return False, "Les commandes sont temporairement désactivées."
-        if self.horaires_actifs and self.heure_ouverture and self.heure_fermeture:
-            heure_actuelle = timezone.localtime(timezone.now()).time()
-            if not (self.heure_ouverture <= heure_actuelle <= self.heure_fermeture):
-                return False, (
-                    f"Les commandes sont acceptées entre "
-                    f"{self.heure_ouverture.strftime('%H:%M')} et "
-                    f"{self.heure_fermeture.strftime('%H:%M')}."
-                )
+        if self.horaires_actifs:
+            now = timezone.localtime(timezone.now())
+            jour = now.weekday()  # 0=Lundi, 6=Dimanche
+            heure_actuelle = now.time()
+
+            horaire = self.horaires_semaine.filter(jour=jour).first()
+            if horaire:
+                if not horaire.actif:
+                    return False, "Les commandes sont fermées aujourd'hui."
+                if horaire.heure_ouverture and horaire.heure_fermeture:
+                    if not (horaire.heure_ouverture <= heure_actuelle <= horaire.heure_fermeture):
+                        return False, (
+                            f"Les commandes sont acceptées entre "
+                            f"{horaire.heure_ouverture.strftime('%H:%M')} et "
+                            f"{horaire.heure_fermeture.strftime('%H:%M')}."
+                        )
+            elif self.heure_ouverture and self.heure_fermeture:
+                if not (self.heure_ouverture <= heure_actuelle <= self.heure_fermeture):
+                    return False, (
+                        f"Les commandes sont acceptées entre "
+                        f"{self.heure_ouverture.strftime('%H:%M')} et "
+                        f"{self.heure_fermeture.strftime('%H:%M')}."
+                    )
         return True, ""
 
     def calculer_frais(self, total_ht, methode_paiement=None):
@@ -438,6 +453,29 @@ class Configuration(models.Model):
         )
         total_ttc = total_ht + frais_service
         return frais_service, total_ttc
+
+
+# ─────────────────── Horaires hebdomadaires ───────────────────
+class HoraireSemaine(models.Model):
+    JOURS = [
+        (0, 'Lundi'), (1, 'Mardi'), (2, 'Mercredi'), (3, 'Jeudi'),
+        (4, 'Vendredi'), (5, 'Samedi'), (6, 'Dimanche'),
+    ]
+    configuration = models.ForeignKey(
+        Configuration,
+        related_name='horaires_semaine',
+        on_delete=models.CASCADE,
+    )
+    jour = models.IntegerField('Jour', choices=JOURS)
+    actif = models.BooleanField('Ouvert', default=True)
+    heure_ouverture = models.TimeField("Heure d'ouverture", null=True, blank=True)
+    heure_fermeture = models.TimeField('Heure de fermeture', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Horaire hebdomadaire'
+        verbose_name_plural = 'Horaires hebdomadaires'
+        ordering = ['jour']
+        unique_together = [('configuration', 'jour')]
 
 
 # ─────────────────── Settlements ───────────────────

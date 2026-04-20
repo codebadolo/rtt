@@ -231,7 +231,7 @@ export default function StudentProducts() {
     queryKey: ['products', category, search],
     queryFn: () => {
       if (search) return productsApi.search(search)
-      const params = category !== 'all' ? { categorie: category } : {}
+      const params = { est_actif: true, ...(category !== 'all' ? { categorie: category } : {}) }
       return productsApi.list(params)
     },
   })

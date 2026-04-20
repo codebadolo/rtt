@@ -163,16 +163,73 @@ export default function StudentCart() {
     if (!config.commandes_actives) {
       return 'Les commandes sont temporairement désactivées.'
     }
-    if (config.horaires_actifs && config.heure_ouverture && config.heure_fermeture) {
+    if (config.horaires_actifs) {
       const now = new Date()
       const pad = (n) => String(n).padStart(2, '0')
       const heureActuelle = `${pad(now.getHours())}:${pad(now.getMinutes())}`
-      if (heureActuelle < config.heure_ouverture || heureActuelle > config.heure_fermeture) {
-        return `Les commandes sont acceptées entre ${config.heure_ouverture} et ${config.heure_fermeture}.`
+      const jour = (now.getDay() + 6) % 7 // JS 0=dim → Python 6=dim
+
+      if (config.horaires_semaine?.length > 0) {
+        const horaire = config.horaires_semaine.find((h) => h.jour === jour)
+        if (horaire) {
+          if (!horaire.actif) return "Les commandes sont fermées aujourd'hui."
+          if (horaire.heure_ouverture && horaire.heure_fermeture) {
+            if (heureActuelle < horaire.heure_ouverture || heureActuelle > horaire.heure_fermeture)
+              return `Les commandes sont acceptées entre ${horaire.heure_ouverture} et ${horaire.heure_fermeture}.`
+          }
+        }
+      } else if (config.heure_ouverture && config.heure_fermeture) {
+        if (heureActuelle < config.heure_ouverture || heureActuelle > config.heure_fermeture)
+          return `Les commandes sont acceptées entre ${config.heure_ouverture} et ${config.heure_fermeture}.`
       }
     }
     return null
   }, [config])
+
+  const isFermeeParHoraire = commandesFermees !== null && config?.commandes_actives === true
+
+  const [countdown, setCountdown] = useState(null)
+
+  useEffect(() => {
+    if (!isFermeeParHoraire || !config) { setCountdown(null); return }
+
+    function getNextOpening() {
+      const now = new Date()
+      for (let offset = 0; offset < 8; offset++) {
+        const d = new Date(now)
+        d.setDate(now.getDate() + offset)
+        const jour = (d.getDay() + 6) % 7
+
+        let ouverture = null
+        let actif = true
+
+        if (config.horaires_semaine?.length > 0) {
+          const h = config.horaires_semaine.find((h) => h.jour === jour)
+          if (h) { actif = h.actif; ouverture = h.heure_ouverture }
+        } else {
+          ouverture = config.heure_ouverture
+        }
+
+        if (!actif || !ouverture) continue
+
+        const [hh, mm] = ouverture.split(':').map(Number)
+        const opening = new Date(d)
+        opening.setHours(hh, mm, 0, 0)
+        if (opening > now) return opening
+      }
+      return null
+    }
+
+    function tick() {
+      const next = getNextOpening()
+      if (!next) { setCountdown(null); return }
+      setCountdown(Math.max(0, Math.floor((next - new Date()) / 1000)))
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [isFermeeParHoraire, config])
 
   const { fraisService, totalTTC } = useMemo(() => {
     if (!config) return { fraisService: 0, totalTTC: total }
@@ -237,7 +294,8 @@ export default function StudentCart() {
   }
 
   const isSubmitting = orderMutation.isPending || initierPaiementMutation.isPending
-  const canOrder = !commandesFermees
+  const itemsInactifs = items.filter((item) => item.product.est_actif === false)
+  const canOrder = !commandesFermees && itemsInactifs.length === 0
 
   if (items.length === 0) {
     return (
@@ -268,12 +326,42 @@ export default function StudentCart() {
           <p className="text-gray-500 mt-1">{items.length} article{items.length > 1 ? 's' : ''}</p>
         </div>
 
+        {itemsInactifs.length > 0 && (
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+            <Trash2 className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-red-800 text-sm">Produits non disponibles</p>
+              <p className="text-red-700 text-sm mt-0.5">
+                {itemsInactifs.map((i) => i.product.nom).join(', ')} {itemsInactifs.length > 1 ? 'ont été désactivés' : 'a été désactivé'} et ne peuvent plus être commandés.
+              </p>
+              <button
+                type="button"
+                onClick={() => itemsInactifs.forEach((i) => removeItem(i.key))}
+                className="mt-2 text-xs font-medium text-red-600 underline hover:text-red-800"
+              >
+                Retirer ces articles du panier
+              </button>
+            </div>
+          </div>
+        )}
+
         {commandesFermees && (
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
             <Clock className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="font-semibold text-amber-800 text-sm">Site temporairement fermé</p>
               <p className="text-amber-700 text-sm mt-0.5">{commandesFermees}</p>
+              {isFermeeParHoraire && countdown !== null && (
+                <div className="mt-2 inline-flex items-center gap-2 bg-amber-100 rounded-xl px-3 py-1.5">
+                  <Clock className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-xs text-amber-700 font-medium">Prochaine ouverture dans</span>
+                  <span className="font-mono font-bold text-amber-800 text-sm">
+                    {String(Math.floor(countdown / 3600)).padStart(2, '0')}:
+                    {String(Math.floor((countdown % 3600) / 60)).padStart(2, '0')}:
+                    {String(countdown % 60).padStart(2, '0')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

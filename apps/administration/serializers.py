@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Q
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
+from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
 from apps.authentification.models import Utilisateur
 
 # ──────────────────── SERIALIZER SECTEUR ────────────────────
@@ -350,10 +350,18 @@ class DashboardStatsSerializer(serializers.Serializer):
 
 
 # ──────────────────── SERIALIZER CONFIGURATION ────────────────────
+class HoraireSemaineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HoraireSemaine
+        fields = ['jour', 'actif', 'heure_ouverture', 'heure_fermeture']
+
+
 class ConfigurationSerializer(serializers.ModelSerializer):
     """
     Serializer pour la configuration tarifaire (singleton).
     """
+    horaires_semaine = HoraireSemaineSerializer(many=True, required=False)
+
     class Meta:
         model = Configuration
         fields = [
@@ -365,9 +373,26 @@ class ConfigurationSerializer(serializers.ModelSerializer):
             'numero_orange',
             'numero_moov',
             'numero_sank',
+            'horaires_semaine',
             'date_modification',
         ]
         read_only_fields = ['date_modification']
+
+    def update(self, instance, validated_data):
+        horaires_data = validated_data.pop('horaires_semaine', None)
+        instance = super().update(instance, validated_data)
+        if horaires_data is not None:
+            for h in horaires_data:
+                HoraireSemaine.objects.update_or_create(
+                    configuration=instance,
+                    jour=h['jour'],
+                    defaults={
+                        'actif': h.get('actif', True),
+                        'heure_ouverture': h.get('heure_ouverture'),
+                        'heure_fermeture': h.get('heure_fermeture'),
+                    },
+                )
+        return instance
 
 
 # ──────────────────── SERIALIZER SETTLEMENT ────────────────────

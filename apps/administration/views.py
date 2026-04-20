@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
+from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
 from .serializers import (
     SecteurListSerializer, SecteurDetailSerializer,
     SalleListSerializer, SalleDetailSerializer,

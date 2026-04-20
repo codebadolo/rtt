@@ -317,6 +317,15 @@ export default function AdminProductDetail() {
       <div className="space-y-6">
         <Breadcrumb items={[{ label: 'Dashboard', to: '/admin' }, { label: 'Produits', to: '/admin/produits' }, { label: product.nom }]} />
 
+        {product.est_actif === false && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-3">
+            <XCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+            <p className="text-sm font-medium text-red-700">
+              Ce produit est <strong>désactivé</strong> — il n'est pas visible par les étudiants et ne peut pas être commandé.
+            </p>
+          </div>
+        )}
+
         {/* Product header card */}
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
           <div className="flex items-start gap-5 flex-wrap">

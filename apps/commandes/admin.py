@@ -60,7 +60,7 @@ class CommandeAdmin(admin.ModelAdmin):
             'fields': ('etudiant', 'secteur', 'salle')
         }),
         ('Détails commande', {
-            'fields': ('description_besoin', 'heure_souhaitee')
+            'fields': ('description_besoin',)
         }),
         ('Paiement', {
             'fields': ('methode_paiement', 'telephone_paiement', 'reference_paiement', 'capture_paiement', 'total_ht', 'total_ttc')
@@ -155,7 +155,14 @@ class CommandeAdmin(admin.ModelAdmin):
         return "Aucune capture"
     apercu_capture.short_description = 'Aperçu paiement'
     
-    actions = ['valider_commandes', 'rejeter_commandes', 'marquer_pretes', 'marquer_distribuees']
+    STATUTS_SUPPRIMABLES = ['BROUILLON', 'EN_ATTENTE', 'ANNULEE', 'REJETEE']
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None:
+            return obj.statut in self.STATUTS_SUPPRIMABLES
+        return True
+
+    actions = ['valider_commandes', 'rejeter_commandes', 'marquer_pretes', 'marquer_distribuees', 'supprimer_non_validees']
     
     def valider_commandes(self, request, queryset):
         """Action pour valider les commandes sélectionnées"""
@@ -190,6 +197,18 @@ class CommandeAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f'{count} commande(s) marquée(s) comme distribuées.')
     marquer_distribuees.short_description = "Marquer comme distribuées"
+
+    def supprimer_non_validees(self, request, queryset):
+        """Supprime uniquement les commandes non validées (brouillon, en attente, annulées, rejetées)"""
+        supprimables = queryset.filter(statut__in=self.STATUTS_SUPPRIMABLES)
+        ignorees = queryset.exclude(statut__in=self.STATUTS_SUPPRIMABLES).count()
+        count = supprimables.count()
+        supprimables.delete()
+        if ignorees:
+            self.message_user(request, f'{count} commande(s) supprimée(s). {ignorees} ignorée(s) (statut non supprimable).', level='warning')
+        else:
+            self.message_user(request, f'{count} commande(s) supprimée(s).')
+    supprimer_non_validees.short_description = "Supprimer les commandes non validées sélectionnées"
 
 
 # ──────────────────── ADMIN HISTORIQUE COMMANDE ────────────────────

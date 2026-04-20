@@ -193,11 +193,16 @@ const COLUMNS = [
     sortable: true,
     render: (val, row) => (
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${row.est_actif === false ? 'bg-gray-100' : 'bg-orange-50'}`}>
           <span className="text-base">🍽️</span>
         </div>
         <div>
-          <p className="font-medium text-gray-900 leading-tight">{val}</p>
+          <div className="flex items-center gap-2">
+            <p className={`font-medium leading-tight ${row.est_actif === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{val}</p>
+            {row.est_actif === false && (
+              <span className="text-xs font-semibold bg-red-100 text-red-500 px-2 py-0.5 rounded-full">Désactivé</span>
+            )}
+          </div>
           <p className="text-xs text-gray-400 truncate max-w-[200px]">{row.description || '—'}</p>
         </div>
       </div>
@@ -432,6 +437,7 @@ export default function AdminProducts() {
           totalPages={totalPages}
           onPageChange={setPage}
           onRowClick={(row) => navigate(`/admin/produits/${row.id}`)}
+          getRowClass={(row) => row.est_actif === false ? 'opacity-60 bg-gray-50/50' : ''}
         />
       </div>
 
