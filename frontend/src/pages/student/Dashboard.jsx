@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShoppingBag,
@@ -8,9 +9,135 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import DashboardLayout from '../../layouts/DashboardLayout'
-import LoadingSpinner from '../../components/LoadingSpinner'
 import useAuthStore from '../../stores/authStore'
 import { horairesApi } from '../../api/sectors'
+import { configApi } from '../../api/admin'
+
+const JOURS_FR = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+
+function getNextOpening(config) {
+  if (!config?.horaires_actifs) return null
+  const now = new Date()
+  const jsToPython = (d) => (d + 6) % 7
+
+  for (let offset = 0; offset < 8; offset++) {
+    const d = new Date(now)
+    d.setDate(now.getDate() + offset)
+    const jour = jsToPython(d.getDay())
+
+    let ouverture = null
+    let actif = true
+
+    if (config.horaires_semaine?.length > 0) {
+      const h = config.horaires_semaine.find((h) => h.jour === jour)
+      if (h) { actif = h.actif; ouverture = h.heure_ouverture }
+    } else {
+      ouverture = config.heure_ouverture
+    }
+
+    if (!actif || !ouverture) continue
+
+    const [hh, mm] = ouverture.split(':').map(Number)
+    const opening = new Date(d)
+    opening.setHours(hh, mm, 0, 0)
+    if (opening > now) return opening
+  }
+  return null
+}
+
+function isCommandesFermees(config) {
+  if (!config) return false
+  if (!config.commandes_actives) return true
+  if (config.horaires_actifs) {
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const heureActuelle = `${pad(now.getHours())}:${pad(now.getMinutes())}`
+    const jour = (now.getDay() + 6) % 7
+
+    if (config.horaires_semaine?.length > 0) {
+      const horaire = config.horaires_semaine.find((h) => h.jour === jour)
+      if (horaire) {
+        if (!horaire.actif) return true
+        if (horaire.heure_ouverture && horaire.heure_fermeture) {
+          return heureActuelle < horaire.heure_ouverture || heureActuelle > horaire.heure_fermeture
+        }
+      }
+    } else if (config.heure_ouverture && config.heure_fermeture) {
+      return heureActuelle < config.heure_ouverture || heureActuelle > config.heure_fermeture
+    }
+  }
+  return false
+}
+
+function CountdownBanner({ config }) {
+  const [seconds, setSeconds] = useState(null)
+  const [nextDate, setNextDate] = useState(null)
+  const fermee = isCommandesFermees(config)
+
+  useEffect(() => {
+    if (!fermee || !config) { setSeconds(null); setNextDate(null); return }
+
+    function tick() {
+      const next = getNextOpening(config)
+      setNextDate(next)
+      if (!next) { setSeconds(null); return }
+      setSeconds(Math.max(0, Math.floor((next - new Date()) / 1000)))
+    }
+
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [fermee, config])
+
+  if (!fermee) return null
+
+  const pad = (n) => String(n).padStart(2, '0')
+  const hh = seconds !== null ? pad(Math.floor(seconds / 3600)) : '--'
+  const mm = seconds !== null ? pad(Math.floor((seconds % 3600) / 60)) : '--'
+  const ss = seconds !== null ? pad(seconds % 60) : '--'
+
+  const jourLabel = nextDate ? JOURS_FR[nextDate.getDay()] : null
+  const heureLabel = nextDate
+    ? `${pad(nextDate.getHours())}:${pad(nextDate.getMinutes())}`
+    : null
+
+  return (
+    <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-3xl p-6 text-white shadow-lg">
+      <div className="flex items-center gap-2 mb-4">
+        <Clock className="h-5 w-5 text-orange-200" />
+        <p className="text-orange-100 font-medium text-sm">Commandes actuellement fermées</p>
+      </div>
+
+      <p className="text-orange-100 text-sm mb-3">Prochaine ouverture dans</p>
+
+      {/* Grand compte à rebours */}
+      <div className="flex items-end gap-2 mb-4">
+        {[hh, mm, ss].map((val, i) => (
+          <div key={i} className="flex items-end gap-2">
+            <div className="bg-white/20 rounded-2xl px-4 py-3 min-w-[64px] text-center backdrop-blur-sm">
+              <span className="font-mono font-extrabold text-4xl leading-none">{val}</span>
+              <p className="text-orange-200 text-xs mt-1">
+                {i === 0 ? 'heures' : i === 1 ? 'minutes' : 'secondes'}
+              </p>
+            </div>
+            {i < 2 && <span className="font-bold text-3xl text-orange-200 mb-3">:</span>}
+          </div>
+        ))}
+      </div>
+
+      {jourLabel && heureLabel && (
+        <p className="text-orange-100 text-sm">
+          Ouverture {jourLabel === JOURS_FR[new Date().getDay()] ? 'aujourd\'hui' : jourLabel} à{' '}
+          <strong className="text-white">{heureLabel}</strong>
+        </p>
+      )}
+
+      {!nextDate && seconds === null && (
+        <p className="text-orange-200 text-sm">Aucune ouverture programmée prochainement.</p>
+      )}
+    </div>
+  )
+}
 
 export default function StudentDashboard() {
   const user = useAuthStore((s) => s.user)
@@ -18,6 +145,11 @@ export default function StudentDashboard() {
   const { data: horaires } = useQuery({
     queryKey: ['horaires-today'],
     queryFn: () => horairesApi.aujourdhui(),
+  })
+
+  const { data: config } = useQuery({
+    queryKey: ['configuration'],
+    queryFn: () => configApi.get(),
   })
 
   const todaySchedules = Array.isArray(horaires)
@@ -30,6 +162,9 @@ export default function StudentDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Countdown — visible seulement si fermé */}
+        {config && <CountdownBanner config={config} />}
+
         {/* Welcome */}
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
