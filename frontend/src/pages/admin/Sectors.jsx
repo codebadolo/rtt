@@ -344,6 +344,7 @@ function RoomsTable({ sectors, onEdit, onDelete }) {
     queryKey: ['all-rooms', page, search, secteurFilter],
     queryFn: () => roomsApi.list({
       page,
+      page_size: 20,
       search: search || undefined,
       secteur: secteurFilter || undefined,
     }),
