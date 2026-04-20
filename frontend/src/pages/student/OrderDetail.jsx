@@ -5,7 +5,6 @@ import {
   ArrowLeft,
   CheckCircle,
   CheckCircle2,
-  Clock,
   CreditCard,
   Loader2,
   MapPin,
@@ -231,7 +230,6 @@ export default function StudentOrderDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <InfoRow icon={MapPin}    label="Secteur"         value={order.secteur_nom} />
             <InfoRow icon={Package}   label="Salle"           value={order.salle_nom} />
-            <InfoRow icon={Clock}     label="Heure souhaitée" value={order.heure_souhaitee} />
             <InfoRow icon={Phone}     label="Téléphone"       value={order.telephone_paiement} mono />
             {order.reference_paiement && (
               <InfoRow icon={CreditCard} label="Référence paiement" value={order.reference_paiement} mono />

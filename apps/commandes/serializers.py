@@ -38,12 +38,9 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
             'frais_service',
             'salle',
             'methode_paiement', 'telephone_paiement',
-            'description_besoin', 'heure_souhaitee', 'lignes',
+            'description_besoin', 'lignes',
         ]
         read_only_fields = ['id', 'numero_commande', 'statut', 'total_ht', 'total_ttc', 'frais_service']
-        extra_kwargs = {
-            'heure_souhaitee': {'required': True},
-        }
 
     def validate(self, data):
         config = Configuration.get_active()
@@ -81,7 +78,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
             'salle_nom', 'secteur_nom',
             'methode_paiement', 'methode_paiement_display',
             'telephone_paiement', 'reference_paiement',
-            'heure_souhaitee', 'description_besoin',
+            'description_besoin',
             'date_creation', 'date_validation',
         ]
 
@@ -115,7 +112,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'salle_nom', 'secteur_nom',
             'methode_paiement', 'methode_paiement_display',
             'telephone_paiement', 'reference_paiement', 'capture_paiement',
-            'description_besoin', 'heure_souhaitee',
+            'description_besoin',
             'motif_rejet', 'date_validation',
             'lignes', 'paiement_senfenico',
             'date_creation', 'date_modification',

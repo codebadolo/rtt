@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
   CheckCircle, XCircle, Package, ClipboardList,
-  Search, X, Clock, MapPin, Phone,
+  Search, X, MapPin, Phone,
   CreditCard, Eye,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -84,11 +84,6 @@ function OrderModal({ order, isOpen, onClose }) {
               <MapPin className="h-3.5 w-3.5 text-orange-400" />
               {order.salle_nom ?? '—'}
             </p>
-            {order.heure_souhaitee && (
-              <p className="text-xs text-orange-500 mt-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3" />{order.heure_souhaitee}
-              </p>
-            )}
           </div>
         </div>
 
@@ -370,13 +365,6 @@ export default function ChefOrders() {
                         </p>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        {order.heure_souhaitee ? (
-                          <span className="text-xs text-orange-600 flex items-center gap-1 font-medium">
-                            <Clock className="h-3.5 w-3.5" />{order.heure_souhaitee}
-                          </span>
-                        ) : (
-                          <span className="text-gray-300 text-sm">—</span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="font-bold text-sm text-gray-800">

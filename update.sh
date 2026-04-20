@@ -43,9 +43,14 @@ all)
     $COMPOSE exec web python manage.py migrate --noinput
     ok "Migrations appliquees"
 
-    info "Rechargement nginx..."
-    $COMPOSE exec nginx nginx -s reload
-    ok "Nginx rechargé"
+    info "Demarrage / rechargement nginx..."
+    if $COMPOSE ps nginx | grep -q "running"; then
+        $COMPOSE exec nginx nginx -s reload
+        ok "Nginx rechargé"
+    else
+        $COMPOSE up -d nginx
+        ok "Nginx démarré"
+    fi
 
     echo ""
     ok "Mise a jour complete !"

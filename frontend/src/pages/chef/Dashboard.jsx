@@ -135,11 +135,6 @@ export default function ChefDashboard() {
                       <p className="text-sm font-medium text-gray-800 mt-0.5">
                         {order.etudiant_nom ?? order.etudiant?.nom ?? '—'}
                       </p>
-                      {order.heure_souhaitee && (
-                        <p className="text-xs text-orange-500 mt-0.5">
-                          <Clock className="h-3 w-3 inline mr-0.5" />{order.heure_souhaitee}
-                        </p>
-                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-bold text-sm text-orange-600">

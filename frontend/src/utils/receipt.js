@@ -117,7 +117,6 @@ export function printReceipt(order) {
     ${order.etudiant_nom ? `<div class="info-item"><div class="lbl">Étudiant</div><div class="val">${order.etudiant_nom}</div></div>` : ''}
     ${order.secteur_nom  ? `<div class="info-item"><div class="lbl">Secteur</div><div class="val">${order.secteur_nom}</div></div>` : ''}
     ${order.salle_nom    ? `<div class="info-item"><div class="lbl">Salle</div><div class="val">${order.salle_nom}</div></div>` : ''}
-    ${order.heure_souhaitee ? `<div class="info-item"><div class="lbl">Heure souhaitée</div><div class="val">${order.heure_souhaitee}</div></div>` : ''}
   </div>
 
   <hr>

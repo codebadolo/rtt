@@ -425,9 +425,6 @@ export default function AdminOrderDetail() {
                   <Package className="h-3.5 w-3.5 text-gray-300 mt-0.5 flex-shrink-0" />
                   <InfoBlock label="Salle" value={order.salle_nom} />
                 </div>
-                {order.heure_souhaitee && (
-                  <InfoBlock label="Heure souhaitée" value={order.heure_souhaitee} />
-                )}
               </div>
             </div>
 

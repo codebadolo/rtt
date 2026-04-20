@@ -105,7 +105,8 @@ class Commande(models.Model):
     )
     heure_souhaitee = models.TimeField(
         'Heure souhaitée',
-        default='12:00:00'
+        null=True,
+        blank=True,
     )
     
     # Paiement Mobile Money

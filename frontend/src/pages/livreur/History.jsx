@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  CheckCircle2, TrendingUp, Package, Clock,
+  CheckCircle2, TrendingUp, Package,
   MapPin, CalendarDays,
 } from 'lucide-react'
 import Breadcrumb from '../../components/Breadcrumb'
@@ -164,12 +164,6 @@ export default function LivreurHistory() {
                       <span className="flex items-center gap-1">
                         <MapPin className="h-3 w-3" />
                         {order.secteur_nom ?? '—'} · {order.salle_nom ?? order.salle?.nom}
-                      </span>
-                    )}
-                    {order.heure_souhaitee && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {order.heure_souhaitee}
                       </span>
                     )}
                     <span className="flex items-center gap-1">

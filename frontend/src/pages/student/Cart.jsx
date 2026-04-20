@@ -232,7 +232,6 @@ export default function StudentCart() {
       methode_paiement: data.methode_paiement,
       telephone_paiement: data.telephone_paiement,
       description_besoin: data.description_besoin || '',
-      heure_souhaitee: data.heure_souhaitee,
       lignes,
     })
   }
@@ -363,15 +362,6 @@ export default function StudentCart() {
                     {errors.salle && <p className="form-error">{errors.salle.message}</p>}
                   </div>
 
-                  <div>
-                    <label className="label">Heure de livraison *</label>
-                    <input
-                      type="time"
-                      className={`input ${errors.heure_souhaitee ? 'border-red-400' : ''}`}
-                      {...register('heure_souhaitee', { required: 'Heure de livraison requise' })}
-                    />
-                    {errors.heure_souhaitee && <p className="form-error">{errors.heure_souhaitee.message}</p>}
-                  </div>
                 </div>
 
                 <div>

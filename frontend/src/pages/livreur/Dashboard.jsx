@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  Truck, Package, CheckCircle, MapPin, Clock,
+  Truck, Package, CheckCircle, MapPin,
   History, TrendingUp, ChevronRight,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -56,14 +56,6 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
               {order.salle_nom ?? order.salle?.nom ?? '—'}
             </span>
           </div>
-          {order.heure_souhaitee && (
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-orange-500" />
-              <span className="text-gray-700">
-                <span className="font-medium">Heure :</span> {order.heure_souhaitee}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Student */}
@@ -274,11 +266,6 @@ export default function LivreurDashboard() {
                       <MapPin className="h-3 w-3" />
                       {order.secteur_nom ?? '—'}{order.salle_nom ? ` · ${order.salle_nom}` : ''}
                     </span>
-                    {order.heure_souhaitee && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{order.heure_souhaitee}
-                      </span>
-                    )}
                   </div>
                 </div>
 
