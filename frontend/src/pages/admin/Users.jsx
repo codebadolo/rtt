@@ -12,6 +12,7 @@ import Breadcrumb from '../../components/Breadcrumb'
 import DataTable from '../../components/DataTable'
 import Modal from '../../components/Modal'
 import { usersApi } from '../../api/users'
+import { adminApi } from '../../api/admin'
 
 /* ── Stats card ── */
 function StatCard({ icon: Icon, label, value, color, sub }) {
@@ -212,23 +213,22 @@ export default function AdminUsers() {
     queryKey: ['users', page, role, search],
     queryFn: () => usersApi.list({ page, role: role || undefined, search: search || undefined }),
   })
-  const { data: allUsers } = useQuery({
-    queryKey: ['users-all'],
-    queryFn: () => usersApi.list(),
-    staleTime: 30_000,
+  const { data: dashStats } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: () => adminApi.stats(),
+    staleTime: 60_000,
   })
 
   const users = Array.isArray(data) ? data : data?.results ?? []
   const total = data?.count ?? users.length
   const totalPages = data?.count ? Math.ceil(data.count / 10) : 1
 
-  const all = Array.isArray(allUsers) ? allUsers : allUsers?.results ?? []
   const stats = {
-    total:     all.length,
-    etudiants: all.filter((u) => u.role === 'ETUDIANT').length,
-    livreurs:  all.filter((u) => u.role === 'LIVREUR').length,
-    chefs:     all.filter((u) => u.role === 'CHEF_SECTEUR').length,
-    actifs:    all.filter((u) => u.est_actif).length,
+    total:     dashStats?.total_utilisateurs ?? null,
+    etudiants: dashStats?.nb_etudiants       ?? null,
+    livreurs:  dashStats?.nb_livreurs        ?? null,
+    chefs:     dashStats?.nb_chefs_secteur   ?? null,
+    actifs:    dashStats?.nb_actifs          ?? null,
   }
 
   const toggleMut = useMutation({
@@ -331,7 +331,7 @@ export default function AdminUsers() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => exportCsv(all)}
+              onClick={() => exportCsv(users)}
               title="Exporter CSV"
               className="inline-flex items-center gap-2 border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
             >
@@ -355,7 +355,7 @@ export default function AdminUsers() {
           <StatCard icon={Truck}         label="Livreurs"        value={stats.livreurs}  color="bg-green-500" />
           <StatCard icon={ShieldCheck}   label="Chefs secteur"   value={stats.chefs}     color="bg-amber-500" />
           <StatCard icon={UserCheck}     label="Comptes actifs"  value={stats.actifs}    color="bg-emerald-500"
-            sub={stats.total > 0 ? `${Math.round((stats.actifs / stats.total) * 100)}% du total` : ''} />
+            sub={stats.total > 0 && stats.actifs !== null ? `${Math.round((stats.actifs / stats.total) * 100)}% du total` : ''} />
         </div>
 
         {/* Role filter pills */}

@@ -456,6 +456,8 @@ class AdminDashboardViewSet(viewsets.ViewSet):
                 'date': cmd.date_creation
             })
         
+        from apps.authentification.models import Utilisateur as U
+        users_qs = U.objects.all()
         stats = {
             'total_secteurs': total_secteurs,
             'total_salles': total_salles,
@@ -466,7 +468,12 @@ class AdminDashboardViewSet(viewsets.ViewSet):
             'ca_mois': ca_mois,
             'top_secteurs': top_secteurs,
             'produits_populaires': list(produits_populaires),
-            'commandes_recentes': recentes_data
+            'commandes_recentes': recentes_data,
+            'total_utilisateurs': users_qs.count(),
+            'nb_etudiants': users_qs.filter(role='ETUDIANT').count(),
+            'nb_livreurs': users_qs.filter(role='LIVREUR').count(),
+            'nb_chefs_secteur': users_qs.filter(role='CHEF_SECTEUR').count(),
+            'nb_actifs': users_qs.filter(est_actif=True).count(),
         }
         
         serializer = DashboardStatsSerializer(stats)

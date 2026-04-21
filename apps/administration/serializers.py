@@ -347,6 +347,11 @@ class DashboardStatsSerializer(serializers.Serializer):
     top_secteurs = SecteurStatsSerializer(many=True)
     produits_populaires = serializers.ListField()
     commandes_recentes = serializers.ListField()
+    total_utilisateurs = serializers.IntegerField()
+    nb_etudiants = serializers.IntegerField()
+    nb_livreurs = serializers.IntegerField()
+    nb_chefs_secteur = serializers.IntegerField()
+    nb_actifs = serializers.IntegerField()
 
 
 # ──────────────────── SERIALIZER CONFIGURATION ────────────────────
