@@ -1,15 +1,24 @@
 from rest_framework import serializers
-from .models import Commande, LigneCommande, HistoriqueCommande, PaiementSenfenico, Plainte
+from .models import Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, PaiementSenfenico, Plainte
 from apps.administration.models import Produit, Variante, Salle, Configuration
+
+
+class OptionLigneSerializer(serializers.ModelSerializer):
+    option_nom = serializers.CharField(source='option.nom', read_only=True)
+
+    class Meta:
+        model = OptionLigneCommande
+        fields = ['option_nom', 'prix_applique']
 
 
 class LigneCommandeSerializer(serializers.ModelSerializer):
     produit_nom = serializers.CharField(source='produit.nom', read_only=True)
     variante_nom = serializers.CharField(source='variante.nom', read_only=True)
+    options = OptionLigneSerializer(many=True, read_only=True)
 
     class Meta:
         model = LigneCommande
-        fields = ['id', 'produit_nom', 'variante_nom', 'quantite', 'prix_unitaire', 'sous_total']
+        fields = ['id', 'produit_nom', 'variante_nom', 'options', 'quantite', 'prix_unitaire', 'sous_total']
 
 
 class LigneCommandeCreateSerializer(serializers.Serializer):

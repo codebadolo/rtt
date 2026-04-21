@@ -361,7 +361,16 @@ export default function AdminOrderDetail() {
                         <div>
                           <p className="text-sm font-medium text-gray-800">{ligne.produit_nom}</p>
                           {ligne.variante_nom && (
-                            <p className="text-xs text-gray-400">{ligne.variante_nom}</p>
+                            <p className="text-xs text-gray-500">{ligne.variante_nom}</p>
+                          )}
+                          {ligne.options?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {ligne.options.map((opt, i) => (
+                                <span key={i} className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md">
+                                  + {opt.option_nom}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>

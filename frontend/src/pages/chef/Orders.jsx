@@ -110,7 +110,14 @@ function OrderModal({ order, isOpen, onClose }) {
                 <div key={l.id ?? i} className="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 last:border-0">
                   <div>
                     <span className="text-sm font-medium text-gray-800">{l.produit_nom ?? l.produit?.nom ?? 'Produit'}</span>
-                    {l.variante_nom && <span className="text-xs text-gray-400 ml-1">({l.variante_nom})</span>}
+                    {l.variante_nom && <span className="text-xs text-gray-500 ml-1">({l.variante_nom})</span>}
+                    {l.options?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {l.options.map((opt, j) => (
+                          <span key={j} className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md">+ {opt.option_nom}</span>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xs text-gray-400">{parseFloat(l.prix_unitaire ?? 0).toLocaleString('fr-FR')} F/u × {l.quantite ?? 1}</p>
                   </div>
                   <span className="font-semibold text-gray-800 text-sm flex-shrink-0">
