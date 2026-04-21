@@ -97,12 +97,12 @@ class SecteurViewSet(viewsets.ModelViewSet):
             'commandes_validees': commandes.filter(statut='VALIDEE').count(),
             'ca_aujourdhui': float(commandes.filter(
                 date_creation__date=today,
-                statut='VALIDEE'
+                statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']
             ).aggregate(total=Sum('total_ttc'))['total'] or 0),
             'ca_mois': float(commandes.filter(
                 date_creation__month=today.month,
                 date_creation__year=today.year,
-                statut='VALIDEE'
+                statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']
             ).aggregate(total=Sum('total_ttc'))['total'] or 0),
         }
         
@@ -404,14 +404,14 @@ class AdminDashboardViewSet(viewsets.ViewSet):
         )
         nb_commandes_aujourdhui = commandes_aujourdhui.count()
         ca_aujourdhui = float(commandes_aujourdhui.filter(
-            statut='VALIDEE'
+            statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']
         ).aggregate(total=Sum('total_ttc'))['total'] or 0)
-        
+
         # CA du mois
         commandes_mois = Commande.objects.filter(
             date_creation__month=today.month,
             date_creation__year=today.year,
-            statut='VALIDEE'
+            statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']
         )
         ca_mois = float(commandes_mois.aggregate(total=Sum('total_ttc'))['total'] or 0)
         
@@ -424,8 +424,8 @@ class AdminDashboardViewSet(viewsets.ViewSet):
                 'nom': secteur.nom,
                 'total_commandes': commandes_secteur.count(),
                 'commandes_en_attente': commandes_secteur.filter(statut='EN_ATTENTE').count(),
-                'commandes_validees': commandes_secteur.filter(statut='VALIDEE').count(),
-                'total_ca': float(commandes_secteur.filter(statut='VALIDEE').aggregate(
+                'commandes_validees': commandes_secteur.filter(statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']).count(),
+                'total_ca': float(commandes_secteur.filter(statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE']).aggregate(
                     total=Sum('total_ttc')
                 )['total'] or 0)
             })
