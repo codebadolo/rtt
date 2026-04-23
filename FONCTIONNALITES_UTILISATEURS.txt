@@ -1,0 +1,136 @@
+FONCTIONNALITES PAR TYPE D'UTILISATEUR - RITOTO EXPRESS
+=========================================================
+Derniere mise a jour : 22 avril 2026
+
+
+APERCU DES ROLES
+----------------
+Ritoto Express distingue quatre types d'utilisateurs :
+
+  1. ETUDIANT       - Commande et paie ses repas
+  2. LIVREUR        - Assure la livraison des commandes
+  3. CHEF_SECTEUR   - Supervise les commandes de son secteur
+  4. ADMIN          - Gere l'ensemble de la plateforme
+
+
+=========================================================
+1. ETUDIANT
+=========================================================
+
+  COMPTE
+  ------
+  - Creer et gerer son compte personnel
+  - Se connecter / se deconnecter
+  - Modifier ses informations (nom, telephone, mot de passe)
+
+  COMMANDES
+  ---------
+  - Consulter le menu disponible
+  - Ajouter des articles au panier
+  - Passer une commande
+  - Suivre l'etat de sa commande en temps reel :
+      EN_ATTENTE → VALIDEE → EN_LIVRAISON → LIVREE
+  - Consulter l'historique de ses commandes
+
+  PAIEMENT
+  --------
+  - Payer via mobile money (Orange, Moov, MTN)
+  - Saisir son code OTP pour valider le paiement
+  - Recevoir une confirmation de paiement
+
+
+=========================================================
+2. LIVREUR
+=========================================================
+
+  TABLEAU DE BORD
+  ---------------
+  - Consulter les commandes qui lui sont assignees
+  - Voir les details de chaque commande (articles, adresse, etudiant)
+
+  GESTION DES LIVRAISONS
+  ----------------------
+  - Accepter une commande a livrer
+  - Mettre a jour le statut de livraison :
+      VALIDEE → EN_LIVRAISON → LIVREE
+  - Marquer une commande comme livree
+
+
+=========================================================
+3. CHEF_SECTEUR
+=========================================================
+
+  SUPERVISION
+  -----------
+  - Consulter toutes les commandes de son secteur
+  - Filtrer les commandes par statut, date ou etudiant
+  - Voir le detail de chaque commande
+
+  GESTION DES COMMANDES
+  ---------------------
+  - Valider ou rejeter une commande en attente
+  - Assigner une commande a un livreur disponible
+  - Suivre l'avancement des livraisons en cours
+
+  RAPPORTS
+  --------
+  - Voir un resume des commandes du jour (nombre, montant total)
+
+
+=========================================================
+4. ADMIN
+=========================================================
+
+  GESTION DES UTILISATEURS
+  ------------------------
+  - Creer, modifier et desactiver des comptes
+  - Attribuer ou changer le role d'un utilisateur
+  - Reinitialiser un mot de passe
+
+  GESTION DU MENU
+  ---------------
+  - Ajouter, modifier et supprimer des articles du menu
+  - Definir les prix et la disponibilite des articles
+
+  GESTION DES COMMANDES
+  ---------------------
+  - Consulter toutes les commandes de la plateforme
+  - Modifier le statut d'une commande manuellement
+  - Annuler une commande
+
+  GESTION DES PAIEMENTS
+  ---------------------
+  - Consulter les transactions Senfenico
+  - Verifier les statuts de paiement
+  - Gerer les cas de paiement en attente ou echoue
+
+  ADMINISTRATION GENERALE
+  -----------------------
+  - Acceder aux journaux d'activite
+  - Configurer les parametres globaux de la plateforme
+  - Gerer les secteurs et assigner les chefs de secteur
+
+
+=========================================================
+TABLEAU RECAPITULATIF
+=========================================================
+
+  Fonctionnalite                  ETUDIANT  LIVREUR  CHEF  ADMIN
+  ---------------------------------------------------------------
+  Passer une commande                Oui       Non    Non    Non
+  Payer (mobile money)               Oui       Non    Non    Non
+  Voir ses propres commandes         Oui       Non    Non    Non
+  Livrer une commande                Non       Oui    Non    Non
+  Mettre a jour le statut livraison  Non       Oui    Oui    Oui
+  Valider/rejeter une commande       Non       Non    Oui    Oui
+  Assigner un livreur                Non       Non    Oui    Oui
+  Voir toutes les commandes          Non       Non    Oui    Oui
+  Gerer les utilisateurs             Non       Non    Non    Oui
+  Gerer le menu                      Non       Non    Non    Oui
+  Gerer les paiements                Non       Non    Non    Oui
+  Administration generale            Non       Non    Non    Oui
+
+
+=========================================================
+Ritoto Express - Tous droits reserves - 2026
+=========================================================
