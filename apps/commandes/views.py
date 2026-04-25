@@ -2,11 +2,12 @@ from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from .models import Commande, HistoriqueCommande, StatutCommande, PaiementSenfenico, Plainte
+from .models import Commande, HistoriqueCommande, StatutCommande, PaiementSenfenico, Plainte, QRCodeCommande
 from .serializers import CommandeListSerializer, CommandeDetailSerializer, CommandeCreateSerializer, HistoriqueCommandeSerializer, PaiementSenfenicoSerializer, PlainteSerializer, PlainteAdminSerializer
 from .services import creer_charge, soumettre_otp as senfenico_soumettre_otp, verifier_webhook_hash
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
@@ -241,6 +242,120 @@ class CommandeViewSet(viewsets.ModelViewSet):
             {'error': 'Paiement échoué. Vérifiez votre OTP et réessayez.', 'statut': charge_statut},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    # ── QR Code : générer pour l'étudiant ─────────────────────────────
+    @action(detail=True, methods=['get'], url_path='qr-code')
+    def qr_code(self, request, pk=None):
+        """
+        Retourne l'image QR code (base64) et le payload offline d'une commande validée.
+        Accessible uniquement par l'étudiant propriétaire.
+        """
+        commande = self.get_object()
+
+        if commande.etudiant != request.user:
+            return Response({'error': 'Interdit'}, status=status.HTTP_403_FORBIDDEN)
+
+        if commande.statut not in [StatutCommande.VALIDEE, StatutCommande.PRETE]:
+            return Response(
+                {'error': 'QR code disponible uniquement pour les commandes validées ou prêtes'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            qr = commande.qr_code
+        except QRCodeCommande.DoesNotExist:
+            qr = QRCodeCommande.generer_pour_commande(commande)
+
+        if qr.est_utilise:
+            return Response(
+                {'error': 'Ce QR code a déjà été utilisé (commande livrée)', 'est_utilise': True},
+                status=status.HTTP_410_GONE,
+            )
+
+        return Response({
+            'image': qr.generer_image_base64(),
+            'payload': qr.payload_offline,
+            'token': str(qr.token),
+            'est_utilise': False,
+        })
+
+    # ── QR Code : valider par le livreur ──────────────────────────────
+    @action(detail=False, methods=['post'], url_path='valider-qr')
+    def valider_qr(self, request):
+        """
+        Valide un QR code scanné par le livreur.
+        Invalide le QR et marque la commande comme DISTRIBUEE.
+        """
+        user = request.user
+        if not (hasattr(user, 'est_livreur') and user.est_livreur):
+            return Response({'error': 'Réservé aux livreurs'}, status=status.HTTP_403_FORBIDDEN)
+
+        token = request.data.get('token', '').strip()
+        if not token:
+            return Response({'error': 'Token requis'}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            try:
+                qr = (
+                    QRCodeCommande.objects
+                    .select_for_update()
+                    .select_related(
+                        'commande', 'commande__etudiant',
+                        'commande__salle', 'commande__secteur'
+                    )
+                    .prefetch_related('commande__lignes__produit')
+                    .get(token=token)
+                )
+            except (QRCodeCommande.DoesNotExist, Exception):
+                return Response({'error': 'QR code invalide'}, status=status.HTTP_404_NOT_FOUND)
+
+            if qr.est_utilise:
+                return Response(
+                    {'error': 'Ce QR code a déjà été utilisé. Livraison déjà confirmée.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            commande = qr.commande
+
+            salle = commande.salle
+            if salle.livreur_1 != user and salle.livreur_2 != user:
+                return Response(
+                    {'error': "Vous n'êtes pas assigné à la salle de cette commande"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            if commande.statut != StatutCommande.PRETE:
+                return Response(
+                    {'error': f"La commande n'est pas encore prête (statut : {commande.get_statut_display()})"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            qr.est_utilise = True
+            qr.date_utilisation = timezone.now()
+            qr.utilise_par = user
+            qr.save(update_fields=['est_utilise', 'date_utilisation', 'utilise_par'])
+
+            commande.distribuer(user)
+
+        return Response({
+            'message': 'Livraison confirmée avec succès !',
+            'commande': {
+                'numero': commande.numero_commande,
+                'etudiant': commande.etudiant.get_full_name(),
+                'salle': commande.salle.nom,
+                'secteur': commande.secteur.nom,
+                'total_ttc': float(commande.total_ttc),
+                'lignes': [
+                    {
+                        'produit': l.produit.nom,
+                        'quantite': l.quantite,
+                        'sous_total': float(l.sous_total),
+                    }
+                    for l in commande.lignes.select_related('produit').all()
+                ],
+            },
+            'date_distribution': qr.date_utilisation.isoformat(),
+        })
 
     # ── Payments stats endpoint ────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='paiements/stats',

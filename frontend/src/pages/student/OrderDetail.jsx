@@ -11,6 +11,7 @@ import {
   Package,
   Phone,
   Printer,
+  QrCode,
   Smartphone,
   XCircle,
 } from 'lucide-react'
@@ -51,6 +52,100 @@ function InfoRow({ icon: Icon, label, value, mono = false }) {
         <p className="text-xs text-gray-400">{label}</p>
         <p className={`text-sm font-medium text-gray-800 ${mono ? 'font-mono' : ''}`}>{value}</p>
       </div>
+    </div>
+  )
+}
+
+function QRCodeSection({ orderId, statut }) {
+  const [visible, setVisible] = useState(false)
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['order-qr', orderId],
+    queryFn: () => ordersApi.getQrCode(orderId),
+    enabled: visible,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const isPrete = statut === 'PRETE'
+
+  return (
+    <div className={`card border-2 ${isPrete ? 'border-orange-200 bg-orange-50' : 'border-gray-100'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <QrCode className={`h-5 w-5 ${isPrete ? 'text-orange-500' : 'text-gray-400'}`} />
+          <h2 className="font-semibold text-gray-800">QR Code de livraison</h2>
+        </div>
+        {isPrete && (
+          <span className="text-xs font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+            Prête à livrer
+          </span>
+        )}
+      </div>
+
+      {!visible ? (
+        <div className="text-center py-2 space-y-3">
+          <p className="text-sm text-gray-500">
+            {isPrete
+              ? 'Votre commande est prête. Présentez ce QR code au livreur.'
+              : 'Votre QR code sera scanné par le livreur lors de la remise.'}
+          </p>
+          <button
+            onClick={() => setVisible(true)}
+            className={`flex items-center gap-2 mx-auto px-5 py-2.5 rounded-xl font-semibold text-sm ${
+              isPrete
+                ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <QrCode className="h-4 w-4" />
+            Afficher le QR code
+          </button>
+        </div>
+      ) : isLoading ? (
+        <div className="flex flex-col items-center gap-2 py-6">
+          <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
+          <p className="text-sm text-gray-400">Génération du QR code…</p>
+        </div>
+      ) : error || data?.est_utilise ? (
+        <div className="text-center py-4 space-y-1">
+          <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
+          <p className="text-sm font-semibold text-green-700">QR code déjà utilisé</p>
+          <p className="text-xs text-gray-400">Votre commande a été livrée et confirmée.</p>
+        </div>
+      ) : data?.image ? (
+        <div className="flex flex-col items-center gap-4">
+          <div className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 inline-block">
+            <img
+              src={data.image}
+              alt="QR code commande"
+              className="w-56 h-56 object-contain"
+            />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-xs text-gray-500 font-mono">{data.payload?.n}</p>
+            <p className="text-xs text-gray-400">
+              À usage unique · Non transférable
+            </p>
+          </div>
+          {/* Résumé offline visible par le livreur */}
+          {Array.isArray(data.payload?.items) && (
+            <details className="w-full text-xs text-gray-500">
+              <summary className="cursor-pointer hover:text-gray-700 text-center">
+                Voir le résumé (mode hors-ligne)
+              </summary>
+              <div className="mt-2 bg-white rounded-xl border border-gray-100 divide-y divide-gray-50">
+                {data.payload.items.map((item, i) => (
+                  <div key={i} className="flex justify-between px-3 py-1.5">
+                    <span>{item.p}</span>
+                    <span className="font-bold">×{item.q}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -117,6 +212,7 @@ export default function StudentOrderDetail() {
   const lignes      = order.lignes ?? []
   const canCancel   = ['BROUILLON', 'EN_ATTENTE'].includes(order.statut)
   const canPrint    = ['VALIDEE', 'PRETE', 'DISTRIBUEE'].includes(order.statut)
+  const canShowQR   = ['VALIDEE', 'PRETE'].includes(order.statut)
   const paiement    = order.paiement_senfenico
   const canSaisirOtp = order.statut === 'EN_ATTENTE' && paiement?.statut === 'send_otp'
   const methode     = METHODE_CFG[order.methode_paiement]
@@ -359,6 +455,9 @@ export default function StudentOrderDetail() {
             </div>
           )
         })()}
+
+        {/* QR Code de livraison */}
+        {canShowQR && <QRCodeSection orderId={order.id} statut={order.statut} />}
 
         {/* Actions */}
         <div className="flex gap-3 flex-wrap">

@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   Truck, Package, CheckCircle, MapPin,
-  History, TrendingUp, ChevronRight,
+  History, TrendingUp, ChevronRight, QrCode,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import Badge from '../../components/Badge'
 import Modal from '../../components/Modal'
+import QRScannerModal from '../../components/QRScannerModal'
 import useAuthStore from '../../stores/authStore'
 import { ordersApi } from '../../api/orders'
 
@@ -122,6 +123,7 @@ export default function LivreurDashboard() {
   const user = useAuthStore((s) => s.user)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [statut, setStatut] = useState('PRETE')
+  const [scannerOpen, setScannerOpen] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['livreur-orders', statut],
@@ -147,9 +149,18 @@ export default function LivreurDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bonjour, {user?.prenom} !</h1>
-          <p className="text-gray-500 mt-1">Tableau de bord — Livreur</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Bonjour, {user?.prenom} !</h1>
+            <p className="text-gray-500 mt-1">Tableau de bord — Livreur</p>
+          </div>
+          <button
+            onClick={() => setScannerOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm shadow-sm transition-colors flex-shrink-0"
+          >
+            <QrCode className="h-4 w-4" />
+            Scanner QR
+          </button>
         </div>
 
         {/* Stats */}
@@ -287,6 +298,11 @@ export default function LivreurDashboard() {
         order={selectedOrder}
         isOpen={!!selectedOrder}
         onClose={() => setSelectedOrder(null)}
+      />
+
+      <QRScannerModal
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
       />
     </DashboardLayout>
   )

@@ -30,4 +30,10 @@ export const ordersApi = {
 
   historique: (id) =>
     client.get(`/commandes/${id}/historique/`).then((r) => r.data),
+
+  getQrCode: (id) =>
+    client.get(`/commandes/${id}/qr-code/`).then((r) => r.data),
+
+  validateQr: (token) =>
+    client.post('/commandes/valider-qr/', { token }).then((r) => r.data),
 }

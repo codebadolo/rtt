@@ -4,6 +4,8 @@ from django.utils import timezone
 from decimal import Decimal
 import random
 import string
+import uuid
+import json
 
 # ─────────────────── Statuts de Commande ───────────────────
 class StatutCommande(models.TextChoices):
@@ -243,6 +245,8 @@ class Commande(models.Model):
             commentaire="Paiement validé"
         )
 
+        QRCodeCommande.generer_pour_commande(self)
+
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
     
@@ -478,6 +482,92 @@ class PaiementSenfenico(models.Model):
 
     def __str__(self):
         return f"{self.charge_reference} ({self.statut})"
+
+
+# ─────────────────── QR Code de Livraison ───────────────────
+class QRCodeCommande(models.Model):
+    """
+    QR code unique généré après validation du paiement.
+    Sert de preuve de livraison : le livreur scanne pour confirmer la distribution.
+    """
+
+    commande = models.OneToOneField(
+        Commande, on_delete=models.CASCADE, related_name='qr_code'
+    )
+    token = models.UUIDField(
+        'Token unique', default=uuid.uuid4, unique=True, editable=False, db_index=True
+    )
+    payload_offline = models.JSONField(
+        'Données hors-ligne',
+        default=dict,
+        help_text="Résumé de la commande embarqué dans le QR pour le mode offline"
+    )
+    est_utilise = models.BooleanField('Utilisé', default=False, db_index=True)
+    date_utilisation = models.DateTimeField('Date utilisation', null=True, blank=True)
+    utilise_par = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='qr_codes_scannes',
+        limit_choices_to={'role': 'LIVREUR'}
+    )
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'QR Code commande'
+        verbose_name_plural = 'QR Codes commandes'
+
+    def __str__(self):
+        statut = 'utilisé' if self.est_utilise else 'valide'
+        return f"QR-{self.commande.numero_commande} ({statut})"
+
+    def generer_image_base64(self):
+        """Génère l'image QR code en PNG base64 (data URL)."""
+        import qrcode
+        import io
+        import base64
+
+        content = json.dumps(
+            {'v': 1, 't': str(self.token), **self.payload_offline},
+            ensure_ascii=False,
+            separators=(',', ':'),
+        )
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=4,
+        )
+        qr.add_data(content)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color='black', back_color='white')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return f'data:image/png;base64,{b64}'
+
+    @classmethod
+    def generer_pour_commande(cls, commande):
+        """Génère le QR code d'une commande (idempotent)."""
+        try:
+            return commande.qr_code
+        except cls.DoesNotExist:
+            pass
+
+        items = [
+            {'p': ligne.produit.nom, 'q': ligne.quantite}
+            for ligne in commande.lignes.select_related('produit').all()
+        ]
+        payload = {
+            'id': commande.id,
+            'n': commande.numero_commande,
+            'e': commande.etudiant.get_full_name(),
+            'salle': commande.salle.nom,
+            'secteur': commande.secteur.nom,
+            'items': items,
+            'total': float(commande.total_ttc),
+        }
+        return cls.objects.create(commande=commande, payload_offline=payload)
 
 
 # ─────────────────── Clôture Journalière ───────────────────
