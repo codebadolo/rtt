@@ -14,8 +14,67 @@ import QRScannerModal from '../../components/QRScannerModal'
 import useAuthStore from '../../stores/authStore'
 import { ordersApi } from '../../api/orders'
 
+function LignesDetail({ lignes, totalHt, fraisService, totalTtc }) {
+  if (!lignes?.length) return null
+  return (
+    <div>
+      <p className="text-sm font-medium text-gray-700 mb-2">Articles à livrer ({lignes.length})</p>
+      <div className="border border-gray-100 rounded-xl overflow-hidden">
+        {lignes.map((ligne, i) => (
+          <div key={ligne.id ?? i} className="px-3 py-2.5 border-b border-gray-50 last:border-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800">
+                  {ligne.produit_nom ?? ligne.produit?.nom ?? 'Produit'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {parseFloat(ligne.prix_unitaire ?? 0).toLocaleString('fr-FR')} F/u × {ligne.quantite ?? 1}
+                </p>
+                {ligne.options?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {ligne.options.map((opt, j) => (
+                      <span key={j} className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md">
+                        + {opt.option_nom}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <span className="font-semibold text-sm text-gray-800 flex-shrink-0">
+                {parseFloat(ligne.sous_total ?? (ligne.prix_unitaire ?? 0) * (ligne.quantite ?? 1)).toLocaleString('fr-FR')} F
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 pt-2 space-y-1">
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>Sous-total produits</span>
+          <span>{parseFloat(totalHt ?? 0).toLocaleString('fr-FR')} FCFA</span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>Frais de service</span>
+          <span>+ {parseFloat(fraisService ?? 0).toLocaleString('fr-FR')} FCFA</span>
+        </div>
+        <div className="flex justify-between font-bold text-orange-500 pt-1 border-t border-gray-100">
+          <span>Total TTC</span>
+          <span>{parseFloat(totalTtc ?? 0).toLocaleString('fr-FR')} FCFA</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OrderDistributeModal({ order, isOpen, onClose }) {
   const queryClient = useQueryClient()
+
+  // Fetch full detail to get lignes + options (list API ne les inclut pas)
+  const { data: detail, isLoading: loadingDetail } = useQuery({
+    queryKey: ['livreur-order-detail', order?.id],
+    queryFn: () => ordersApi.get(order.id),
+    enabled: isOpen && !!order?.id,
+    staleTime: 60_000,
+  })
 
   const distributeMutation = useMutation({
     mutationFn: () => ordersApi.distribute(order.id),
@@ -29,7 +88,6 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
   })
 
   if (!order) return null
-  const lignes = order.lignes ?? order.items ?? []
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Livraison ${order.numero_commande}`}>
@@ -65,37 +123,27 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
           <p className="text-gray-600 text-sm mt-0.5">{order.etudiant_nom ?? order.etudiant?.nom}</p>
         </div>
 
-        {lignes.length > 0 && (
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Articles à livrer ({lignes.length})</p>
-            <div className="border border-gray-100 rounded-xl overflow-hidden">
-              {lignes.map((ligne, i) => (
-                <div key={ligne.id ?? i} className="flex items-center justify-between px-3 py-2.5 border-b border-gray-50 last:border-0">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{ligne.produit_nom ?? ligne.produit?.nom ?? 'Produit'}</p>
-                    <p className="text-xs text-gray-400">{parseFloat(ligne.prix_unitaire ?? 0).toLocaleString('fr-FR')} F/u × {ligne.quantite ?? 1}</p>
-                  </div>
-                  <span className="font-semibold text-sm text-gray-800 flex-shrink-0">
-                    {parseFloat(ligne.sous_total ?? (ligne.prix_unitaire ?? 0) * (ligne.quantite ?? 1)).toLocaleString('fr-FR')} F
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 pt-2 space-y-1">
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Sous-total produits</span>
-                <span>{parseFloat(order.total_ht ?? 0).toLocaleString('fr-FR')} FCFA</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Frais de service</span>
-                <span>+ {parseFloat(order.frais_service ?? 0).toLocaleString('fr-FR')} FCFA</span>
-              </div>
-              <div className="flex justify-between font-bold text-orange-500 pt-1 border-t border-gray-100">
-                <span>Total TTC</span>
-                <span>{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} FCFA</span>
-              </div>
-            </div>
+        {/* Instructions spéciales */}
+        {(detail?.description_besoin) && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+            <p className="text-xs font-semibold text-yellow-700 mb-0.5">Instructions spéciales</p>
+            <p className="text-sm text-yellow-800">{detail.description_besoin}</p>
           </div>
+        )}
+
+        {/* Articles avec options */}
+        {loadingDetail ? (
+          <div className="flex items-center justify-center gap-2 py-4 text-gray-400 text-sm">
+            <span className="h-4 w-4 border-2 border-gray-200 border-t-orange-400 rounded-full animate-spin" />
+            Chargement des articles…
+          </div>
+        ) : (
+          <LignesDetail
+            lignes={detail?.lignes}
+            totalHt={detail?.total_ht ?? order.total_ht}
+            fraisService={detail?.frais_service ?? order.frais_service}
+            totalTtc={detail?.total_ttc ?? order.total_ttc}
+          />
         )}
 
         {order.statut === 'PRETE' && (

@@ -195,7 +195,7 @@ export default function QRScannerModal({ isOpen, onClose }) {
               </div>
             </div>
 
-            {/* Articles */}
+            {/* Articles avec options */}
             {Array.isArray(scannedData.items) && scannedData.items.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-500 mb-1.5 flex items-center gap-1">
@@ -205,10 +205,23 @@ export default function QRScannerModal({ isOpen, onClose }) {
                   {scannedData.items.map((item, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between px-3 py-2 border-b border-gray-50 last:border-0"
+                      className="px-3 py-2.5 border-b border-gray-50 last:border-0"
                     >
-                      <span className="text-sm text-gray-800">{item.p}</span>
-                      <span className="text-sm font-bold text-orange-500">×{item.q}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-800">{item.p}</span>
+                          {Array.isArray(item.o) && item.o.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {item.o.map((opt, j) => (
+                                <span key={j} className="text-xs bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-md">
+                                  + {opt}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-sm font-bold text-orange-500 flex-shrink-0">×{item.q}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

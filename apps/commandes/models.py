@@ -554,10 +554,13 @@ class QRCodeCommande(models.Model):
         except cls.DoesNotExist:
             pass
 
-        items = [
-            {'p': ligne.produit.nom, 'q': ligne.quantite}
-            for ligne in commande.lignes.select_related('produit').all()
-        ]
+        items = []
+        for ligne in commande.lignes.select_related('produit').prefetch_related('options__option').all():
+            item = {'p': ligne.produit.nom, 'q': ligne.quantite}
+            opts = [o.option.nom for o in ligne.options.all()]
+            if opts:
+                item['o'] = opts
+            items.append(item)
         payload = {
             'id': commande.id,
             'n': commande.numero_commande,
