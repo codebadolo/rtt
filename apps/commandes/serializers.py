@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, PaiementSenfenico, Plainte
-from apps.administration.models import Produit, Variante, Salle, Configuration
+from apps.administration.models import Produit, Variante, Option, Salle, Configuration
 
 
 class OptionLigneSerializer(serializers.ModelSerializer):
@@ -25,6 +25,12 @@ class LigneCommandeCreateSerializer(serializers.Serializer):
     produit = serializers.PrimaryKeyRelatedField(queryset=Produit.objects.filter(est_actif=True))
     variante = serializers.PrimaryKeyRelatedField(
         queryset=Variante.objects.all(), required=False, allow_null=True
+    )
+    options = serializers.PrimaryKeyRelatedField(
+        queryset=Option.objects.filter(est_actif=True),
+        many=True,
+        required=False,
+        default=list,
     )
     quantite = serializers.IntegerField(min_value=1)
     prix_unitaire = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
@@ -74,8 +80,14 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         validated_data['statut'] = 'EN_ATTENTE'
         commande = Commande.objects.create(**validated_data)
         for ligne in lignes_data:
-            ligne.pop('options', None)
-            LigneCommande.objects.create(commande=commande, **ligne)
+            options_data = ligne.pop('options', [])
+            ligne_obj = LigneCommande.objects.create(commande=commande, **ligne)
+            for option in options_data:
+                OptionLigneCommande.objects.create(
+                    ligne_commande=ligne_obj,
+                    option=option,
+                    prix_applique=option.prix,
+                )
         commande.mettre_a_jour_total()
         return commande
 
