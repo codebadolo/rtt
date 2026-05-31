@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
+from .models import Universite, Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
 from .serializers import (
     SecteurListSerializer, SecteurDetailSerializer,
     SalleListSerializer, SalleDetailSerializer,
@@ -20,6 +20,20 @@ from apps.commandes.models import Commande
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ──────────────────── VIEWSET UNIVERSITE ────────────────────
+class UniversiteViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Universite.objects.filter(est_actif=True).order_by('nom')
+    permission_classes = []
+
+    def list(self, request, *args, **kwargs):
+        data = list(self.get_queryset().values('id', 'nom', 'code', 'ville'))
+        return Response(data)
+
+    def retrieve(self, request, *args, **kwargs):
+        obj = self.get_object()
+        return Response({'id': obj.id, 'nom': obj.nom, 'code': obj.code, 'ville': obj.ville})
 
 
 # ──────────────────── VIEWSET SECTEUR ────────────────────

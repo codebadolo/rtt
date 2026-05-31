@@ -10,11 +10,16 @@ import json
 # ─────────────────── Statuts de Commande ───────────────────
 class StatutCommande(models.TextChoices):
     BROUILLON = 'BROUILLON', 'Brouillon'
-    EN_ATTENTE = 'EN_ATTENTE', 'En attente de validation'
+    EN_ATTENTE = 'EN_ATTENTE', 'En attente'
+    ACCEPTEE = 'ACCEPTEE', 'Acceptée par le vendeur'
+    EN_PREPARATION = 'EN_PREPARATION', 'En préparation'
+    PRETE = 'PRETE', 'Prête'
+    EN_LIVRAISON = 'EN_LIVRAISON', 'En livraison'
+    LIVREE = 'LIVREE', 'Livrée'
+    # Statuts hérités conservés pour compatibilité production
     VALIDEE = 'VALIDEE', 'Validée - Paiement reçu'
-    REJETEE = 'REJETEE', 'Rejetée'
-    PRETE = 'PRETE', 'Prête pour distribution'
     DISTRIBUEE = 'DISTRIBUEE', 'Distribuée'
+    REJETEE = 'REJETEE', 'Rejetée'
     ANNULEE = 'ANNULEE', 'Annulée'
 
 
@@ -157,7 +162,23 @@ class Commande(models.Model):
         blank=True
     )
     
-    # Distribution
+    # Acceptation par le vendeur
+    acceptee_par_vendeur = models.BooleanField('Acceptée par vendeur', default=False)
+    date_acceptation_vendeur = models.DateTimeField('Date acceptation vendeur', null=True, blank=True)
+
+    # Mission livreur — système d'acceptation
+    livreur_assigne = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='missions_acceptees',
+        limit_choices_to={'role': 'LIVREUR'},
+        verbose_name='Livreur assigné',
+    )
+    date_acceptation_livreur = models.DateTimeField('Date acceptation livreur', null=True, blank=True)
+
+    # Distribution (conservé pour compatibilité production)
     distribue_par = models.ForeignKey(
         'authentification.Utilisateur',
         on_delete=models.SET_NULL,
@@ -167,8 +188,8 @@ class Commande(models.Model):
         limit_choices_to={'role': 'LIVREUR'}
     )
     date_distribution = models.DateTimeField(
-        'Date de distribution', 
-        null=True, 
+        'Date de distribution',
+        null=True,
         blank=True
     )
     
@@ -271,6 +292,40 @@ class Commande(models.Model):
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
     
+    def accepter_vendeur(self, vendeur):
+        """Le vendeur accepte la commande — passe en EN_PREPARATION."""
+        self.statut = StatutCommande.EN_PREPARATION
+        self.acceptee_par_vendeur = True
+        self.date_acceptation_vendeur = timezone.now()
+        self.save(update_fields=['statut', 'acceptee_par_vendeur', 'date_acceptation_vendeur'])
+        HistoriqueCommande.objects.create(
+            commande=self,
+            ancien_statut=StatutCommande.ACCEPTEE,
+            nouveau_statut=StatutCommande.EN_PREPARATION,
+            modifie_par=vendeur,
+            commentaire='Commande prise en charge par le vendeur',
+        )
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
+
+    def accepter_mission_livreur(self, livreur):
+        """Le livreur accepte la mission — la commande disparaît de la liste des autres."""
+        if self.livreur_assigne_id:
+            raise ValueError('Cette mission a déjà été acceptée par un autre livreur.')
+        self.livreur_assigne = livreur
+        self.date_acceptation_livreur = timezone.now()
+        self.statut = StatutCommande.EN_LIVRAISON
+        self.save(update_fields=['livreur_assigne', 'date_acceptation_livreur', 'statut'])
+        HistoriqueCommande.objects.create(
+            commande=self,
+            ancien_statut=StatutCommande.PRETE,
+            nouveau_statut=StatutCommande.EN_LIVRAISON,
+            modifie_par=livreur,
+            commentaire='Mission acceptée par le livreur',
+        )
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
+
     def marquer_prete(self, livreur=None):
         """
         Marque la commande comme prête pour distribution
@@ -291,20 +346,25 @@ class Commande(models.Model):
     
     def distribuer(self, livreur):
         """
-        Marque la commande comme distribuée
+        Marque la commande comme livrée (scan QR validé).
+        Déclenche la distribution automatique des paiements au vendeur.
         """
-        self.statut = StatutCommande.DISTRIBUEE
+        ancien_statut = self.statut
+        self.statut = StatutCommande.LIVREE
         self.distribue_par = livreur
         self.date_distribution = timezone.now()
         self.save(update_fields=['statut', 'distribue_par', 'date_distribution'])
 
         HistoriqueCommande.objects.create(
             commande=self,
-            ancien_statut=StatutCommande.PRETE,
-            nouveau_statut=StatutCommande.DISTRIBUEE,
+            ancien_statut=ancien_statut,
+            nouveau_statut=StatutCommande.LIVREE,
             modifie_par=livreur,
-            commentaire="Commande distribuée"
+            commentaire='Commande livrée — QR code scanné',
         )
+
+        # Distribution automatique vers le wallet du vendeur
+        WalletVendeur.crediter_livraison(self)
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
@@ -621,6 +681,113 @@ class ClotureJournaliere(models.Model):
     
     def __str__(self):
         return f"Clôture {self.secteur.code} - {self.date_cloture}"
+
+
+# ─────────────────── Plaintes ───────────────────
+# ─────────────────── Wallet Vendeur ───────────────────
+class WalletVendeur(models.Model):
+    """
+    Solde disponible d'un vendeur.
+    Crédité automatiquement après chaque livraison validée (déduction commission).
+    """
+
+    vendeur = models.OneToOneField(
+        'authentification.Utilisateur',
+        on_delete=models.CASCADE,
+        related_name='wallet',
+        verbose_name='Vendeur',
+    )
+    solde = models.DecimalField('Solde disponible (FCFA)', max_digits=14, decimal_places=2, default=0)
+    total_encaisse = models.DecimalField('Total encaissé', max_digits=14, decimal_places=2, default=0)
+    total_commissions = models.DecimalField('Total commissions prélevées', max_digits=14, decimal_places=2, default=0)
+    date_modification = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Wallet vendeur'
+        verbose_name_plural = 'Wallets vendeurs'
+
+    def __str__(self):
+        return f"Wallet {self.vendeur.get_full_name()} — {self.solde} FCFA"
+
+    @classmethod
+    def crediter_livraison(cls, commande):
+        """
+        Crédite le vendeur après validation de la livraison.
+        Déduit la commission Ritôtô Campus (frais_service) du montant versé.
+        """
+        from apps.administration.models import ProfilVendeur
+        from decimal import Decimal
+
+        # Identifier le vendeur de la commande via ProfilVendeur si disponible
+        vendeur = None
+        try:
+            # Le secteur de la commande est lié au vendeur
+            profils = ProfilVendeur.objects.filter(
+                emplacement=commande.secteur, est_valide=True
+            )
+            if profils.exists():
+                vendeur = profils.first().utilisateur
+        except Exception:
+            pass
+
+        if vendeur is None:
+            return
+
+        montant_vendeur = commande.total_ht  # vendeur reçoit HT, Ritôtô garde les frais
+        commission = commande.frais_service
+
+        wallet, _ = cls.objects.get_or_create(vendeur=vendeur)
+        wallet.solde += montant_vendeur
+        wallet.total_encaisse += montant_vendeur
+        wallet.total_commissions += commission
+        wallet.save(update_fields=['solde', 'total_encaisse', 'total_commissions'])
+
+        TransactionWallet.objects.create(
+            wallet=wallet,
+            type_transaction='CREDIT',
+            montant=montant_vendeur,
+            commission=commission,
+            commande=commande,
+            note=f'Livraison validée — commande {commande.numero_commande}',
+        )
+
+
+class TransactionWallet(models.Model):
+    """
+    Historique des mouvements de fonds du wallet vendeur.
+    """
+
+    TYPE_CHOICES = [
+        ('CREDIT', 'Crédit (vente livrée)'),
+        ('DEBIT', 'Débit (retrait)'),
+        ('REMBOURSEMENT', 'Remboursement client'),
+    ]
+
+    wallet = models.ForeignKey(
+        WalletVendeur,
+        on_delete=models.CASCADE,
+        related_name='transactions',
+    )
+    type_transaction = models.CharField('Type', max_length=15, choices=TYPE_CHOICES)
+    montant = models.DecimalField('Montant (FCFA)', max_digits=12, decimal_places=2)
+    commission = models.DecimalField('Commission Ritôtô', max_digits=10, decimal_places=2, default=0)
+    commande = models.ForeignKey(
+        'Commande',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='transactions_wallet',
+    )
+    note = models.TextField('Note', blank=True, default='')
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Transaction wallet'
+        verbose_name_plural = 'Transactions wallet'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.get_type_transaction_display()} — {self.montant} FCFA ({self.date_creation.strftime('%d/%m/%Y')})"
 
 
 # ─────────────────── Plaintes ───────────────────

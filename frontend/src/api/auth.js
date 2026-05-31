@@ -1,5 +1,16 @@
 import client from './client'
 
+export const universitesApi = {
+  list: () => client.get('/universites/').then((r) => r.data),
+}
+
+export const otpApi = {
+  envoyer: (telephone) =>
+    client.post('/auth/otp/envoyer/', { telephone }).then((r) => r.data),
+  verifier: (telephone, code) =>
+    client.post('/auth/otp/verifier/', { telephone, code }).then((r) => r.data),
+}
+
 export const authApi = {
   register: (data) =>
     client.post('/auth/inscription/', data).then((r) => r.data),

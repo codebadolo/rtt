@@ -49,6 +49,11 @@ import ChefLivreurs from './pages/chef/Livreurs'
 import LivreurDashboard from './pages/livreur/Dashboard'
 import LivreurHistory from './pages/livreur/History'
 
+// Vendeur pages
+import VendeurDashboard from './pages/vendeur/Dashboard'
+import VendeurOrders from './pages/vendeur/Orders'
+import VendeurWallet from './pages/vendeur/Wallet'
+
 function RootRedirect() {
   const { isAuthenticated, isLoading, user } = useAuthStore()
 
@@ -64,10 +69,13 @@ function RootRedirect() {
   if (!isAuthenticated) return <Landing />
 
   const redirects = {
-    ETUDIANT:     '/etudiant',
-    ADMIN:        '/admin',
-    CHEF_SECTEUR: '/chef',
-    LIVREUR:      '/livreur',
+    ETUDIANT:           '/etudiant',
+    LIVREUR:            '/livreur',
+    VENDEUR_INTERIEUR:  '/vendeur',
+    VENDEUR_EXTERIEUR:  '/vendeur',
+    CHEF_SECTEUR:       '/chef',
+    ADMIN_UNIVERSITAIRE:'/admin',
+    ADMIN:              '/admin',
   }
 
   return <Navigate to={redirects[user?.role] ?? '/connexion'} replace />
@@ -172,6 +180,22 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LivreurDashboard />} />
               <Route path="/historique" element={<LivreurHistory />} />
+              <Route path="/profil" element={<StudentProfile />} />
+            </Routes>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Vendeur */}
+      <Route
+        path="/vendeur/*"
+        element={
+          <ProtectedRoute allowedRoles={['VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR', 'ADMIN']}>
+            <Routes>
+              <Route path="/" element={<VendeurDashboard />} />
+              <Route path="/commandes" element={<VendeurOrders />} />
+              <Route path="/wallet" element={<VendeurWallet />} />
+              <Route path="/produits" element={<AdminProducts />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>

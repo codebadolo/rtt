@@ -148,6 +148,22 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
 
         {order.statut === 'PRETE' && (
           <button
+            onClick={() => acceptMission.mutate(order.id)}
+            disabled={acceptMission.isPending}
+            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors disabled:opacity-60"
+          >
+            {acceptMission.isPending ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Acceptation…
+              </span>
+            ) : (
+              <><Truck className="h-5 w-5" /> Accepter la mission</>
+            )}
+          </button>
+        )}
+        {order.statut === 'EN_LIVRAISON' && (
+          <button
             onClick={() => distributeMutation.mutate()}
             disabled={distributeMutation.isPending}
             className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold transition-colors disabled:opacity-60"
@@ -172,11 +188,22 @@ export default function LivreurDashboard() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [statut, setStatut] = useState('PRETE')
   const [scannerOpen, setScannerOpen] = useState(false)
+  const queryClient = useQueryClient()
+
+  const acceptMission = useMutation({
+    mutationFn: (id) => ordersApi.accepterMission(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['livreur-orders'] })
+      toast.success('Mission acceptée ! En route 🛵')
+      setSelectedOrder(null)
+    },
+    onError: (e) => toast.error(e.response?.data?.detail ?? 'Mission déjà prise ou erreur'),
+  })
 
   const { data, isLoading } = useQuery({
     queryKey: ['livreur-orders', statut],
     queryFn: () => ordersApi.list({ statut }),
-    refetchInterval: 20000,
+    refetchInterval: 15000,
   })
 
   // Stats du jour
@@ -259,10 +286,12 @@ export default function LivreurDashboard() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {[
-            { value: 'PRETE',     label: 'Prêtes à livrer' },
-            { value: 'DISTRIBUEE', label: 'Distribuées' },
+            { value: 'PRETE',       label: 'Prêtes à livrer' },
+            { value: 'EN_LIVRAISON', label: 'En livraison' },
+            { value: 'LIVREE',      label: 'Livrées' },
+            { value: 'DISTRIBUEE',  label: 'Distribuées' },
           ].map((tab) => (
             <button
               key={tab.value}

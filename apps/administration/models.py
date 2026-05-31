@@ -2,6 +2,29 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
+
+# ─────────────────── Université ───────────────────
+class Universite(models.Model):
+    """
+    Représente une université partenaire de la plateforme.
+    Chaque utilisateur est rattaché à une université.
+    """
+    nom = models.CharField('Nom', max_length=200)
+    code = models.CharField('Code', max_length=20, unique=True)
+    adresse = models.TextField('Adresse', null=True, blank=True)
+    ville = models.CharField('Ville', max_length=100, null=True, blank=True)
+    est_actif = models.BooleanField('Active', default=True)
+    date_creation = models.DateTimeField('Date création', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Université'
+        verbose_name_plural = 'Universités'
+        ordering = ['nom']
+
+    def __str__(self):
+        return f"{self.nom} ({self.code})"
+
+
 # ─────────────────── Secteurs et Salles ───────────────────
 class Secteur(models.Model):
     """
@@ -9,6 +32,14 @@ class Secteur(models.Model):
     Un secteur peut avoir plusieurs chefs de secteur.
     """
 
+    universite = models.ForeignKey(
+        Universite,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='secteurs',
+        verbose_name='Université',
+    )
     nom = models.CharField('Nom du secteur', max_length=100)
     code = models.CharField('Code secteur', max_length=20, unique=True)  # ISIG, CAMPUS, etc.
     description = models.TextField('Description', null=True, blank=True)
@@ -521,3 +552,185 @@ class SettlementRecord(models.Model):
 
     def __str__(self):
         return f"Settlement {self.reference_senfenico} — {self.montant} FCFA ({self.statut})"
+
+
+# ─────────────────── Profil Vendeur ───────────────────
+class ProfilVendeur(models.Model):
+    """
+    Profil boutique d'un vendeur (intérieur ou extérieur).
+    Créé lors de l'inscription, activé après validation admin.
+    """
+
+    MODE_LIVRAISON = [
+        ('SOI_MEME', 'Livre soi-même'),
+        ('LIVREUR', 'Fait appel à un livreur'),
+    ]
+
+    utilisateur = models.OneToOneField(
+        'authentification.Utilisateur',
+        on_delete=models.CASCADE,
+        related_name='profil_vendeur',
+        verbose_name='Utilisateur',
+    )
+    universite = models.ForeignKey(
+        Universite,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='vendeurs',
+        verbose_name='Université desservie',
+    )
+    nom_boutique = models.CharField('Nom de la boutique', max_length=200)
+    description = models.TextField('Description', blank=True, default='')
+    categorie_principale = models.CharField(
+        'Catégorie principale',
+        max_length=20,
+        choices=Produit.CATEGORIE_CHOIX,
+        default='AUTRE',
+    )
+    emplacement = models.ForeignKey(
+        Secteur,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='vendeurs',
+        verbose_name='Emplacement (secteur/zone)',
+    )
+    mode_livraison = models.CharField(
+        'Mode de livraison',
+        max_length=10,
+        choices=MODE_LIVRAISON,
+        default='LIVREUR',
+    )
+    capacite_max_commandes = models.PositiveIntegerField(
+        'Capacité max commandes simultanées',
+        default=20,
+    )
+
+    # KYC
+    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/vendeurs/cnib/', null=True, blank=True)
+    photo_visage = models.ImageField('Photo visage', upload_to='kyc/vendeurs/visage/', null=True, blank=True)
+
+    # Vendeur extérieur uniquement
+    adresse_commerce = models.TextField('Adresse du commerce', null=True, blank=True)
+    horaires_disponibilite = models.JSONField(
+        'Horaires de disponibilité',
+        default=dict,
+        blank=True,
+        help_text='Ex: {"lundi": {"ouverture": "08:00", "fermeture": "18:00"}}',
+    )
+
+    # Validation
+    est_valide = models.BooleanField('Compte validé', default=False)
+    valide_par = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='vendeurs_valides',
+    )
+    date_validation = models.DateTimeField('Date de validation', null=True, blank=True)
+    motif_rejet = models.TextField('Motif de rejet', null=True, blank=True)
+
+    est_actif = models.BooleanField('Boutique active', default=True)
+    date_creation = models.DateTimeField('Date création', auto_now_add=True)
+    date_modification = models.DateTimeField('Dernière modification', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Profil vendeur'
+        verbose_name_plural = 'Profils vendeurs'
+        ordering = ['nom_boutique']
+
+    def __str__(self):
+        return f"{self.nom_boutique} ({self.utilisateur.get_full_name()})"
+
+    def valider(self, admin):
+        self.est_valide = True
+        self.valide_par = admin
+        self.date_validation = timezone.now()
+        self.motif_rejet = None
+        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+
+    def rejeter(self, admin, motif):
+        self.est_valide = False
+        self.valide_par = admin
+        self.date_validation = timezone.now()
+        self.motif_rejet = motif
+        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+
+
+# ─────────────────── Profil Livreur ───────────────────
+class ProfilLivreur(models.Model):
+    """
+    Profil d'un livreur étudiant.
+    Actif uniquement après validation admin (photo CNIB + visage vérifiées).
+    """
+
+    utilisateur = models.OneToOneField(
+        'authentification.Utilisateur',
+        on_delete=models.CASCADE,
+        related_name='profil_livreur',
+        verbose_name='Utilisateur',
+    )
+    universite = models.ForeignKey(
+        Universite,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='livreurs',
+        verbose_name='Université',
+    )
+
+    # KYC obligatoire
+    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/livreurs/cnib/', null=True, blank=True)
+    photo_visage = models.ImageField('Photo visage', upload_to='kyc/livreurs/visage/', null=True, blank=True)
+
+    # Zones de livraison choisies par le livreur
+    zones_livraison = models.ManyToManyField(
+        Secteur,
+        blank=True,
+        related_name='livreurs_zones',
+        verbose_name='Zones de livraison',
+    )
+
+    capacite_max_livraisons = models.PositiveIntegerField(
+        'Capacité max livraisons simultanées',
+        default=5,
+    )
+
+    # Validation
+    est_valide = models.BooleanField('Compte validé', default=False)
+    valide_par = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='livreurs_valides',
+    )
+    date_validation = models.DateTimeField('Date de validation', null=True, blank=True)
+    motif_rejet = models.TextField('Motif de rejet', null=True, blank=True)
+
+    date_creation = models.DateTimeField('Date création', auto_now_add=True)
+    date_modification = models.DateTimeField('Dernière modification', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Profil livreur'
+        verbose_name_plural = 'Profils livreurs'
+
+    def __str__(self):
+        statut = 'validé' if self.est_valide else 'en attente'
+        return f"Livreur {self.utilisateur.get_full_name()} ({statut})"
+
+    def valider(self, admin):
+        self.est_valide = True
+        self.valide_par = admin
+        self.date_validation = timezone.now()
+        self.motif_rejet = None
+        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+
+    def rejeter(self, admin, motif):
+        self.est_valide = False
+        self.valide_par = admin
+        self.date_validation = timezone.now()
+        self.motif_rejet = motif
+        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])

@@ -98,9 +98,10 @@ class AuthViewSet(viewsets.GenericViewSet):
     @action(detail=False, methods=['post'], url_path='deconnexion')
     def deconnexion(self, request):
         if request.user.is_authenticated:
+            email = request.user.email
             Token.objects.filter(user=request.user).delete()
             logout(request)
-            logger.info(f"Déconnexion: {request.user.email}")
+            logger.info(f"Déconnexion: {email}")
         return Response({'message': 'Déconnexion réussie'})
     
     @action(detail=False, methods=['get'], url_path='profil')

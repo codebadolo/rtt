@@ -21,7 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'no-client-id'}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <App />
           <Toaster
             position="top-right"

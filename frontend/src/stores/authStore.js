@@ -52,18 +52,24 @@ const useAuthStore = create((set, get) => ({
   },
 
   fetchProfile: async () => {
-    if (!getStoredToken()) {
+    const tokenAtStart = getStoredToken()
+    if (!tokenAtStart) {
       set({ user: null, isAuthenticated: false, isLoading: false })
       return null
     }
     set({ isLoading: true })
     try {
       const user = await authApi.getProfile()
-      set({ user, isAuthenticated: true, isLoading: false })
+      // Discard response if a concurrent login() replaced the token
+      if (getStoredToken() === tokenAtStart) {
+        set({ user, isAuthenticated: true, isLoading: false })
+      }
       return user
     } catch (_) {
-      removeStoredToken()
-      set({ user: null, isAuthenticated: false, isLoading: false })
+      if (getStoredToken() === tokenAtStart) {
+        removeStoredToken()
+        set({ user: null, isAuthenticated: false, isLoading: false })
+      }
       return null
     }
   },

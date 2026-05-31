@@ -39,6 +39,42 @@ const navByRole = {
     { to: '/etudiant/plaintes', label: 'Mes plaintes', icon: AlertTriangle },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },
   ],
+  VENDEUR_INTERIEUR: [
+    { to: '/vendeur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/vendeur/commandes', label: 'Commandes', icon: ClipboardList },
+    { to: '/vendeur/produits', label: 'Mes produits', icon: Package },
+    { to: '/vendeur/wallet', label: 'Wallet', icon: CreditCard },
+    { to: '/vendeur/stats', label: 'Statistiques', icon: BarChart3 },
+    { to: '/vendeur/profil', label: 'Ma boutique', icon: User },
+  ],
+  VENDEUR_EXTERIEUR: [
+    { to: '/vendeur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/vendeur/commandes', label: 'Commandes', icon: ClipboardList },
+    { to: '/vendeur/produits', label: 'Mes produits', icon: Package },
+    { to: '/vendeur/wallet', label: 'Wallet', icon: CreditCard },
+    { to: '/vendeur/stats', label: 'Statistiques', icon: BarChart3 },
+    { to: '/vendeur/profil', label: 'Ma boutique', icon: User },
+  ],
+  LIVREUR: [
+    { to: '/livreur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/livreur/historique', label: 'Historique', icon: History },
+    { to: '/livreur/profil', label: 'Mon profil', icon: User },
+  ],
+  CHEF_SECTEUR: [
+    { to: '/chef', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/chef/commandes', label: 'Commandes', icon: ClipboardList },
+    { to: '/chef/livreurs', label: 'Livreurs', icon: Truck },
+    { to: '/chef/comptabilite', label: 'Comptabilité', icon: BarChart3 },
+    { to: '/chef/profil', label: 'Mon profil', icon: User },
+  ],
+  ADMIN_UNIVERSITAIRE: [
+    { to: '/admin', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
+    { to: '/admin/utilisateurs', label: 'Utilisateurs', icon: Users },
+    { to: '/admin/commandes', label: 'Commandes', icon: ClipboardList },
+    { to: '/admin/plaintes', label: 'Plaintes', icon: AlertTriangle },
+    { to: '/admin/secteurs', label: 'Zones & Salles', icon: MapPin },
+    { to: '/etudiant/profil', label: 'Mon profil', icon: User },
+  ],
   ADMIN: [
     { to: '/admin', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
     { to: '/admin/utilisateurs', label: 'Utilisateurs', icon: Users },
@@ -52,25 +88,16 @@ const navByRole = {
     { to: '/admin/configuration', label: 'Configuration', icon: Settings },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },
   ],
-  CHEF_SECTEUR: [
-    { to: '/chef', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-    { to: '/chef/commandes', label: 'Commandes', icon: ClipboardList },
-    { to: '/chef/livreurs', label: 'Livreurs', icon: Truck },
-    { to: '/chef/comptabilite', label: 'Comptabilité', icon: BarChart3 },
-    { to: '/chef/profil', label: 'Mon profil', icon: User },
-  ],
-  LIVREUR: [
-    { to: '/livreur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-    { to: '/livreur/historique', label: 'Historique', icon: History },
-    { to: '/livreur/profil', label: 'Mon profil', icon: User },
-  ],
 }
 
 const roleLabels = {
-  ETUDIANT: 'Étudiant',
-  ADMIN: 'Administrateur',
-  CHEF_SECTEUR: 'Chef de Secteur',
-  LIVREUR: 'Livreur',
+  ETUDIANT:           'Étudiant',
+  LIVREUR:            'Livreur',
+  VENDEUR_INTERIEUR:  'Vendeur intérieur',
+  VENDEUR_EXTERIEUR:  'Vendeur extérieur',
+  CHEF_SECTEUR:       'Chef de Secteur',
+  ADMIN_UNIVERSITAIRE:'Admin Universitaire',
+  ADMIN:              'Super Administrateur',
 }
 
 // URL WebSocket : en dev Vite proxy /ws → localhost:8001, en prod via Nginx

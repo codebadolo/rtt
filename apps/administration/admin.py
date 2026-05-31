@@ -3,7 +3,10 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.http import urlencode
 from django.db import models
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, SettlementRecord
+from .models import (
+    Secteur, Salle, Produit, Variante, Option, HoraireCommande,
+    Configuration, SettlementRecord, Universite, ProfilVendeur, ProfilLivreur,
+)
 
 # ──────────────────── ADMIN SECTEUR ────────────────────
 @admin.register(Secteur)
@@ -406,3 +409,119 @@ class SettlementRecordAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+# ──────────────────── ADMIN UNIVERSITÉ ────────────────────
+@admin.register(Universite)
+class UniversiteAdmin(admin.ModelAdmin):
+    list_display = ['nom', 'code', 'ville', 'nb_vendeurs', 'nb_livreurs', 'est_actif']
+    list_filter = ['est_actif', 'ville']
+    search_fields = ['nom', 'code', 'ville']
+    ordering = ['nom']
+    fieldsets = (
+        ('Informations', {'fields': ('nom', 'code', 'ville', 'adresse', 'est_actif')}),
+    )
+    actions = ['activer', 'desactiver']
+
+    def nb_vendeurs(self, obj):
+        return obj.vendeurs.filter(est_valide=True).count()
+    nb_vendeurs.short_description = 'Vendeurs validés'
+
+    def nb_livreurs(self, obj):
+        return obj.livreurs.filter(est_valide=True).count()
+    nb_livreurs.short_description = 'Livreurs validés'
+
+    def activer(self, request, queryset):
+        queryset.update(est_actif=True)
+    activer.short_description = 'Activer'
+
+    def desactiver(self, request, queryset):
+        queryset.update(est_actif=False)
+    desactiver.short_description = 'Désactiver'
+
+
+# ──────────────────── ADMIN PROFIL VENDEUR ────────────────────
+@admin.register(ProfilVendeur)
+class ProfilVendeurAdmin(admin.ModelAdmin):
+    list_display = ['nom_boutique', 'utilisateur', 'universite', 'categorie_principale', 'mode_livraison', 'est_valide', 'est_actif']
+    list_filter = ['est_valide', 'est_actif', 'categorie_principale', 'mode_livraison', 'universite']
+    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+    ordering = ['-date_creation']
+    readonly_fields = ['date_creation', 'date_modification', 'date_validation', 'valide_par']
+    actions = ['valider_vendeurs', 'suspendre_vendeurs']
+
+    fieldsets = (
+        ('Boutique', {
+            'fields': ('utilisateur', 'universite', 'nom_boutique', 'description', 'categorie_principale', 'emplacement', 'mode_livraison', 'capacite_max_commandes'),
+        }),
+        ('KYC', {
+            'fields': ('photo_cnib', 'photo_visage'),
+            'classes': ('collapse',),
+        }),
+        ('Vendeur extérieur', {
+            'fields': ('adresse_commerce', 'horaires_disponibilite'),
+            'classes': ('collapse',),
+        }),
+        ('Validation', {
+            'fields': ('est_valide', 'valide_par', 'date_validation', 'motif_rejet'),
+        }),
+        ('Métadonnées', {
+            'fields': ('est_actif', 'date_creation', 'date_modification'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def valider_vendeurs(self, request, queryset):
+        for profil in queryset:
+            profil.valider(request.user)
+        self.message_user(request, f'{queryset.count()} vendeur(s) validé(s).')
+    valider_vendeurs.short_description = 'Valider les vendeurs sélectionnés'
+
+    def suspendre_vendeurs(self, request, queryset):
+        queryset.update(est_actif=False)
+        self.message_user(request, f'{queryset.count()} vendeur(s) suspendu(s).')
+    suspendre_vendeurs.short_description = 'Suspendre les vendeurs sélectionnés'
+
+
+# ──────────────────── ADMIN PROFIL LIVREUR ────────────────────
+@admin.register(ProfilLivreur)
+class ProfilLivreurAdmin(admin.ModelAdmin):
+    list_display = ['utilisateur', 'universite', 'capacite_max_livraisons', 'zones_count', 'est_valide']
+    list_filter = ['est_valide', 'universite']
+    search_fields = ['utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+    ordering = ['-date_creation']
+    readonly_fields = ['date_creation', 'date_modification', 'date_validation', 'valide_par']
+    filter_horizontal = ['zones_livraison']
+    actions = ['valider_livreurs', 'rejeter_livreurs']
+
+    fieldsets = (
+        ('Informations', {
+            'fields': ('utilisateur', 'universite', 'capacite_max_livraisons', 'zones_livraison'),
+        }),
+        ('KYC', {
+            'fields': ('photo_cnib', 'photo_visage'),
+        }),
+        ('Validation', {
+            'fields': ('est_valide', 'valide_par', 'date_validation', 'motif_rejet'),
+        }),
+        ('Métadonnées', {
+            'fields': ('date_creation', 'date_modification'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def zones_count(self, obj):
+        return obj.zones_livraison.count()
+    zones_count.short_description = 'Zones choisies'
+
+    def valider_livreurs(self, request, queryset):
+        for profil in queryset:
+            profil.valider(request.user)
+        self.message_user(request, f'{queryset.count()} livreur(s) validé(s).')
+    valider_livreurs.short_description = 'Valider les livreurs sélectionnés'
+
+    def rejeter_livreurs(self, request, queryset):
+        for profil in queryset:
+            profil.rejeter(request.user, 'Rejeté par l\'administrateur')
+        self.message_user(request, f'{queryset.count()} livreur(s) rejeté(s).')
+    rejeter_livreurs.short_description = 'Rejeter les livreurs sélectionnés'

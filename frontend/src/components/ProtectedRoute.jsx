@@ -20,10 +20,13 @@ export default function ProtectedRoute({ children, allowedRoles }) {
 
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     const roleRedirects = {
-      ETUDIANT: '/etudiant',
-      ADMIN: '/admin',
-      CHEF_SECTEUR: '/chef',
-      LIVREUR: '/livreur',
+      ETUDIANT:           '/etudiant',
+      LIVREUR:            '/livreur',
+      VENDEUR_INTERIEUR:  '/vendeur',
+      VENDEUR_EXTERIEUR:  '/vendeur',
+      CHEF_SECTEUR:       '/chef',
+      ADMIN_UNIVERSITAIRE:'/admin',
+      ADMIN:              '/admin',
     }
     const redirect = roleRedirects[user?.role] ?? '/connexion'
     return <Navigate to={redirect} replace />
