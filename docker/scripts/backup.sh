@@ -15,7 +15,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Début backup ==="
 
 # 1. Dump PostgreSQL
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Dump PostgreSQL..."
-docker compose -f "$COMPOSE_FILE" exec -T postgres \
+docker compose -f "$COMPOSE_FILE" exec -T db \
     pg_dump -U "${POSTGRES_USER:-ritoto}" "${POSTGRES_DB:-ritoto}" \
     > "$BACKUP_DIR/db-$DATE.sql"
 

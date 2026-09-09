@@ -20,15 +20,15 @@ trap "rm -rf $WORK_DIR" EXIT
 # Extraire le backup
 tar -xzf "$BACKUP_FILE" -C "$WORK_DIR"
 
-# 1. Arrêter les services applicatifs (garder postgres)
+# 1. Arrêter les services applicatifs (garder db)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Arrêt des services..."
-docker compose -f "$COMPOSE_FILE" stop backend daphne nginx frontend 2>/dev/null || true
+docker compose -f "$COMPOSE_FILE" stop web nginx 2>/dev/null || true
 
 # 2. Restaurer la base PostgreSQL
 DB_FILE=$(find "$WORK_DIR" -name "db-*.sql" | head -1)
 if [[ -f "$DB_FILE" ]]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restauration PostgreSQL..."
-    docker compose -f "$COMPOSE_FILE" exec -T postgres \
+    docker compose -f "$COMPOSE_FILE" exec -T db \
         psql -U "${POSTGRES_USER:-ritoto}" "${POSTGRES_DB:-ritoto}" < "$DB_FILE"
 fi
 
