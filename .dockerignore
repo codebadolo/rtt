@@ -36,3 +36,6 @@ docker-compose*.yml
 # Media
 /media/
 /static/
+
+# Backups (peuvent contenir des fichiers root-only sur le VPS)
+/backups/
