@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from decimal import Decimal
@@ -32,6 +32,17 @@ def generer_numero_commande():
     random_part = ''.join(random.choices(string.digits, k=4))
     return f"ORD-{today}-{random_part}"
 
+
+def generer_code_retrait():
+    """
+    Génère un code court alphanumérique (ex: 7K2P9A) pour le retrait chez le
+    vendeur — écrit à la main sur l'étiquette, comparé visuellement, jamais
+    scanné (§6.1).
+    """
+    alphabet = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(alphabet, k=6))
+
+
 class Commande(models.Model):
     """
     Modèle principal d'une commande.
@@ -43,7 +54,12 @@ class Commande(models.Model):
         ('MOOV', 'Moov Money'),
         ('SANK', 'Sank Money'),
     ]
-    
+
+    MODE_RECEPTION = [
+        ('SUR_PLACE', 'Retrait sur place'),
+        ('LIVRAISON', 'Livraison'),
+    ]
+
     # Numéro unique de commande
     numero_commande = models.CharField(
         'Numéro commande', 
@@ -67,11 +83,43 @@ class Commande(models.Model):
         related_name='commandes'
     )
     salle = models.ForeignKey(
-        'administration.Salle', 
-        on_delete=models.PROTECT, 
+        'administration.Salle',
+        on_delete=models.PROTECT,
         related_name='commandes'
     )
-    
+
+    # Vendeur unique de la commande (§4.1 : un panier, un seul vendeur).
+    # Nullable pour compat avec les commandes existantes non rattachées.
+    vendeur = models.ForeignKey(
+        'administration.ProfilVendeur',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='commandes',
+        verbose_name='Vendeur',
+    )
+
+    # Mode de réception choisi par le client — toujours son choix (§4.2).
+    mode_reception = models.CharField(
+        'Mode de réception',
+        max_length=10,
+        choices=MODE_RECEPTION,
+        default='LIVRAISON',
+    )
+
+    # Créneau fixe choisi par le client (§4.2 / §4.4).
+    creneau = models.ForeignKey(
+        'administration.CreneauLivraison',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='commandes',
+        verbose_name='Créneau',
+    )
+
+    # Code court affiché à l'acceptation vendeur, comparé visuellement au retrait (§6.1).
+    code_retrait = models.CharField('Code de retrait', max_length=8, blank=True, default='')
+
     # Statut
     statut = models.CharField(
         'Statut', 
@@ -249,24 +297,44 @@ class Commande(models.Model):
     
     def valider(self, validateurs, reference_paiement=None):
         """
-        Valide la commande (paiement confirmé)
+        Valide la commande (paiement confirmé).
+        Réserve le stock des produits et crédite le solde "en attente" du
+        vendeur (§5.1, §14.3). En cas de rupture de stock détectée à cet
+        instant (paiements simultanés sur le dernier exemplaire), la
+        commande est automatiquement annulée et remboursée au lieu d'être
+        validée.
         """
-        self.statut = StatutCommande.VALIDEE
-        self.valide_par = validateurs
-        self.date_validation = timezone.now()
-        if reference_paiement:
-            self.reference_paiement = reference_paiement
-        self.save(update_fields=['statut', 'valide_par', 'date_validation', 'reference_paiement'])
+        from apps.administration.models import Produit
 
-        HistoriqueCommande.objects.create(
-            commande=self,
-            ancien_statut=StatutCommande.EN_ATTENTE,
-            nouveau_statut=StatutCommande.VALIDEE,
-            modifie_par=validateurs,
-            commentaire="Paiement validé"
-        )
+        with transaction.atomic():
+            lignes = list(self.lignes.select_related('produit'))
+            for ligne in lignes:
+                produit = Produit.objects.select_for_update().get(pk=ligne.produit_id)
+                if produit.stock_limite and (produit.quantite_stock or 0) < ligne.quantite:
+                    Remboursement.declencher(
+                        self, motif=f"Rupture de stock : {produit.nom}", automatique=True,
+                    )
+                    self.annuler(validateurs, f"Rupture de stock : {produit.nom}", force=True)
+                    return
+                produit.diminuer_stock(ligne.quantite)
 
-        QRCodeCommande.generer_pour_commande(self)
+            self.statut = StatutCommande.VALIDEE
+            self.valide_par = validateurs
+            self.date_validation = timezone.now()
+            if reference_paiement:
+                self.reference_paiement = reference_paiement
+            self.save(update_fields=['statut', 'valide_par', 'date_validation', 'reference_paiement'])
+
+            HistoriqueCommande.objects.create(
+                commande=self,
+                ancien_statut=StatutCommande.EN_ATTENTE,
+                nouveau_statut=StatutCommande.VALIDEE,
+                modifie_par=validateurs,
+                commentaire="Paiement validé"
+            )
+
+            QRCodeCommande.generer_pour_commande(self)
+            WalletVendeur.crediter_en_attente(self)
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
@@ -293,17 +361,40 @@ class Commande(models.Model):
         envoyer_mise_a_jour_commande(self)
     
     def accepter_vendeur(self, vendeur):
-        """Le vendeur accepte la commande — passe en EN_PREPARATION."""
-        self.statut = StatutCommande.EN_PREPARATION
+        """
+        Le vendeur confirme la commande — passe en ACCEPTEE (§4.5).
+        Génère le code de retrait court, comparé visuellement (pas scanné)
+        par le livreur au moment de récupérer la commande (§6.1).
+        """
+        ancien_statut = self.statut
+        self.statut = StatutCommande.ACCEPTEE
         self.acceptee_par_vendeur = True
         self.date_acceptation_vendeur = timezone.now()
-        self.save(update_fields=['statut', 'acceptee_par_vendeur', 'date_acceptation_vendeur'])
+        if not self.code_retrait:
+            self.code_retrait = generer_code_retrait()
+        self.save(update_fields=[
+            'statut', 'acceptee_par_vendeur', 'date_acceptation_vendeur', 'code_retrait',
+        ])
+        HistoriqueCommande.objects.create(
+            commande=self,
+            ancien_statut=ancien_statut,
+            nouveau_statut=StatutCommande.ACCEPTEE,
+            modifie_par=vendeur,
+            commentaire='Commande acceptée par le vendeur',
+        )
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
+
+    def demarrer_preparation(self, vendeur):
+        """Le vendeur commence la préparation — passe en EN_PREPARATION (§4.5)."""
+        self.statut = StatutCommande.EN_PREPARATION
+        self.save(update_fields=['statut'])
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=StatutCommande.ACCEPTEE,
             nouveau_statut=StatutCommande.EN_PREPARATION,
             modifie_par=vendeur,
-            commentaire='Commande prise en charge par le vendeur',
+            commentaire='Préparation commencée',
         )
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
@@ -363,20 +454,44 @@ class Commande(models.Model):
             commentaire='Commande livrée — QR code scanné',
         )
 
-        # Distribution automatique vers le wallet du vendeur
-        WalletVendeur.crediter_livraison(self)
+        # Déblocage du solde "en attente" vers "disponible" (§5.1, §6.2)
+        WalletVendeur.debloquer(self)
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
-    
-    def annuler(self, utilisateur, motif):
+
+    # Statuts après lesquels une préparation a déjà commencé — le vendeur a
+    # engagé des ingrédients et du travail (§8). Annulation client bloquée.
+    STATUTS_PREPARATION_ENGAGEE = (
+        StatutCommande.EN_PREPARATION, StatutCommande.PRETE,
+        StatutCommande.EN_LIVRAISON, StatutCommande.LIVREE,
+    )
+
+    def annuler(self, utilisateur, motif, force=False):
         """
-        Annule la commande
+        Annule la commande.
+        - Avant EN_PREPARATION : le client peut annuler lui-même, 100% retenu
+          côté plateforme (rien n'a été crédité au vendeur) → remboursement direct.
+        - EN_PREPARATION / PRETE / EN_LIVRAISON : annulation automatique interdite,
+          seul un administrateur peut forcer (force=True) une annulation exceptionnelle.
+        - LIVREE : jamais d'annulation directe — c'est un litige (voir Plainte).
+        (§5.2, §8)
         """
+        if self.statut == StatutCommande.LIVREE:
+            raise ValueError(
+                "Une commande livrée ne peut pas être annulée directement — "
+                "ouvrez un litige."
+            )
+        if self.statut in self.STATUTS_PREPARATION_ENGAGEE and not force:
+            raise ValueError(
+                "La préparation a déjà commencé : seul un administrateur peut "
+                "forcer cette annulation."
+            )
+
         ancien_statut = self.statut
         self.statut = StatutCommande.ANNULEE
         self.save(update_fields=['statut'])
-        
+
         HistoriqueCommande.objects.create(
             commande=self,
             ancien_statut=ancien_statut,
@@ -384,6 +499,21 @@ class Commande(models.Model):
             modifie_par=utilisateur,
             commentaire=f"Annulé: {motif}"
         )
+
+        # Restaurer le stock si déjà réservé (commande validée avant annulation)
+        if ancien_statut != StatutCommande.EN_ATTENTE:
+            from apps.administration.models import Produit
+            for ligne in self.lignes.select_related('produit'):
+                if ligne.produit.stock_limite:
+                    Produit.objects.filter(pk=ligne.produit_id).update(
+                        quantite_stock=models.F('quantite_stock') + ligne.quantite
+                    )
+
+        if not Remboursement.objects.filter(commande=self).exists():
+            Remboursement.declencher(self, motif=motif, automatique=not force)
+
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        envoyer_mise_a_jour_commande(self)
 
 
 # ─────────────────── Lignes de Commande ───────────────────
@@ -429,11 +559,21 @@ class LigneCommande(models.Model):
         verbose_name_plural = 'Lignes de commande'
     
     def save(self, *args, **kwargs):
+        # Un panier, un seul vendeur (§4.1) : toutes les lignes doivent
+        # référencer des produits du même vendeur que la commande.
+        vendeur_commande_id = self.commande.vendeur_id
+        vendeur_produit_id = self.produit.vendeur_id
+        if vendeur_commande_id and vendeur_produit_id and vendeur_commande_id != vendeur_produit_id:
+            raise ValueError(
+                "Ce produit appartient à un autre vendeur : une commande ne "
+                "peut contenir que des produits d'un seul vendeur."
+            )
+
         # Calcul automatique du sous-total
         if not self.sous_total:
             self.sous_total = self.quantite * self.prix_unitaire
         super().save(*args, **kwargs)
-        
+
         # Mettre à jour le total de la commande parente
         self.commande.mettre_a_jour_total()
     
@@ -698,6 +838,10 @@ class WalletVendeur(models.Model):
         verbose_name='Vendeur',
     )
     solde = models.DecimalField('Solde disponible (FCFA)', max_digits=14, decimal_places=2, default=0)
+    solde_en_attente = models.DecimalField(
+        'Solde en attente (FCFA)', max_digits=14, decimal_places=2, default=0,
+        help_text="Crédité au paiement, non retirable tant que la livraison n'est pas validée (§5.1)",
+    )
     total_encaisse = models.DecimalField('Total encaissé', max_digits=14, decimal_places=2, default=0)
     total_commissions = models.DecimalField('Total commissions prélevées', max_digits=14, decimal_places=2, default=0)
     date_modification = models.DateTimeField(auto_now=True)
@@ -707,29 +851,27 @@ class WalletVendeur(models.Model):
         verbose_name_plural = 'Wallets vendeurs'
 
     def __str__(self):
-        return f"Wallet {self.vendeur.get_full_name()} — {self.solde} FCFA"
+        return f"Wallet {self.vendeur.get_full_name()} — {self.solde} FCFA (attente: {self.solde_en_attente})"
+
+    @staticmethod
+    def _resoudre_vendeur(commande):
+        """Utilisateur-vendeur d'une commande, avec repli sur l'ancien mode
+        (secteur) pour les commandes créées avant le rattachement direct."""
+        if commande.vendeur_id:
+            return commande.vendeur.utilisateur
+
+        from apps.administration.models import ProfilVendeur
+        profils = ProfilVendeur.objects.filter(emplacement=commande.secteur, est_valide=True)
+        premier = profils.first()
+        return premier.utilisateur if premier else None
 
     @classmethod
-    def crediter_livraison(cls, commande):
+    def crediter_en_attente(cls, commande):
         """
-        Crédite le vendeur après validation de la livraison.
-        Déduit la commission Ritôtô Campus (frais_service) du montant versé.
+        Crédite le solde "en attente" du vendeur dès le paiement confirmé.
+        Le montant n'est pas retirable tant que le QR n'a pas été scanné (§5.1).
         """
-        from apps.administration.models import ProfilVendeur
-        from decimal import Decimal
-
-        # Identifier le vendeur de la commande via ProfilVendeur si disponible
-        vendeur = None
-        try:
-            # Le secteur de la commande est lié au vendeur
-            profils = ProfilVendeur.objects.filter(
-                emplacement=commande.secteur, est_valide=True
-            )
-            if profils.exists():
-                vendeur = profils.first().utilisateur
-        except Exception:
-            pass
-
+        vendeur = cls._resoudre_vendeur(commande)
         if vendeur is None:
             return
 
@@ -737,18 +879,43 @@ class WalletVendeur(models.Model):
         commission = commande.frais_service
 
         wallet, _ = cls.objects.get_or_create(vendeur=vendeur)
-        wallet.solde += montant_vendeur
+        wallet.solde_en_attente += montant_vendeur
         wallet.total_encaisse += montant_vendeur
         wallet.total_commissions += commission
-        wallet.save(update_fields=['solde', 'total_encaisse', 'total_commissions'])
+        wallet.save(update_fields=['solde_en_attente', 'total_encaisse', 'total_commissions'])
+
+        TransactionWallet.objects.create(
+            wallet=wallet,
+            type_transaction='CREDIT_ATTENTE',
+            montant=montant_vendeur,
+            commission=commission,
+            commande=commande,
+            note=f'Paiement reçu (en attente) — commande {commande.numero_commande}',
+        )
+
+    @classmethod
+    def debloquer(cls, commande):
+        """
+        Fait passer le montant de la commande de "en attente" à "disponible"
+        au moment du scan QR / validation de livraison (§5.1, §6.2).
+        """
+        vendeur = cls._resoudre_vendeur(commande)
+        if vendeur is None:
+            return
+
+        montant_vendeur = commande.total_ht
+
+        wallet, _ = cls.objects.get_or_create(vendeur=vendeur)
+        wallet.solde_en_attente = max(Decimal('0'), wallet.solde_en_attente - montant_vendeur)
+        wallet.solde += montant_vendeur
+        wallet.save(update_fields=['solde_en_attente', 'solde'])
 
         TransactionWallet.objects.create(
             wallet=wallet,
             type_transaction='CREDIT',
             montant=montant_vendeur,
-            commission=commission,
             commande=commande,
-            note=f'Livraison validée — commande {commande.numero_commande}',
+            note=f'Livraison validée — solde débloqué — commande {commande.numero_commande}',
         )
 
 
@@ -758,7 +925,8 @@ class TransactionWallet(models.Model):
     """
 
     TYPE_CHOICES = [
-        ('CREDIT', 'Crédit (vente livrée)'),
+        ('CREDIT_ATTENTE', 'Crédit en attente (paiement reçu)'),
+        ('CREDIT', 'Crédit disponible (vente livrée)'),
         ('DEBIT', 'Débit (retrait)'),
         ('REMBOURSEMENT', 'Remboursement client'),
     ]
@@ -790,13 +958,140 @@ class TransactionWallet(models.Model):
         return f"{self.get_type_transaction_display()} — {self.montant} FCFA ({self.date_creation.strftime('%d/%m/%Y')})"
 
 
+# ─────────────────── Remboursements ───────────────────
+class Remboursement(models.Model):
+    """
+    Suivi d'un remboursement client (§5.2, §8, §14.3).
+    Aucune API de remboursement automatique confirmée côté agrégateur au
+    moment de l'écriture (point de vigilance §5.2) : le remboursement est
+    donc tracé ici et traité manuellement par un administrateur, qui le
+    marque ensuite comme effectué.
+    """
+
+    STATUT_CHOICES = [
+        ('EN_ATTENTE', 'En attente de traitement'),
+        ('TRAITE', 'Remboursé'),
+        ('ECHOUE', 'Échoué'),
+    ]
+
+    commande = models.ForeignKey(
+        Commande,
+        on_delete=models.CASCADE,
+        related_name='remboursements',
+    )
+    montant = models.DecimalField('Montant (FCFA)', max_digits=12, decimal_places=2)
+    motif = models.TextField('Motif', blank=True, default='')
+    automatique = models.BooleanField(
+        'Déclenché automatiquement', default=False,
+        help_text="True : annulation avant préparation ou rupture de stock. False : décision admin.",
+    )
+    statut = models.CharField('Statut', max_length=15, choices=STATUT_CHOICES, default='EN_ATTENTE')
+    traite_par = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='remboursements_traites',
+    )
+    date_creation = models.DateTimeField('Date de création', auto_now_add=True)
+    date_traitement = models.DateTimeField('Date de traitement', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Remboursement'
+        verbose_name_plural = 'Remboursements'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"Remboursement {self.commande.numero_commande} — {self.montant} FCFA ({self.statut})"
+
+    @classmethod
+    def declencher(cls, commande, motif, automatique=True):
+        """Crée l'enregistrement de remboursement pour une commande annulée."""
+        return cls.objects.create(
+            commande=commande,
+            montant=commande.total_ttc,
+            motif=motif,
+            automatique=automatique,
+        )
+
+    def marquer_traite(self, admin):
+        self.statut = 'TRAITE'
+        self.traite_par = admin
+        self.date_traitement = timezone.now()
+        self.save(update_fields=['statut', 'traite_par', 'date_traitement'])
+
+
+# ─────────────────── Notation ───────────────────
+class NoteVendeur(models.Model):
+    """
+    Note du vendeur (1 à 5) déclenchée à la livraison (§10). Publique,
+    affichée sur la fiche du vendeur.
+    """
+
+    commande = models.OneToOneField(
+        Commande, on_delete=models.CASCADE, related_name='note_vendeur',
+    )
+    vendeur = models.ForeignKey(
+        'administration.ProfilVendeur', on_delete=models.CASCADE, related_name='notes',
+    )
+    client = models.ForeignKey(
+        'authentification.Utilisateur', on_delete=models.CASCADE, related_name='notes_vendeurs_donnees',
+    )
+    note = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    commentaire = models.TextField('Commentaire', blank=True, default='')
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Note vendeur'
+        verbose_name_plural = 'Notes vendeurs'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.vendeur.nom_boutique} — {self.note}/5"
+
+
+class NoteLivreur(models.Model):
+    """
+    Note du livreur (1 à 5) déclenchée à la livraison (§10). Reste interne,
+    visible uniquement par l'administrateur — pas de fiche publique.
+    """
+
+    commande = models.OneToOneField(
+        Commande, on_delete=models.CASCADE, related_name='note_livreur',
+    )
+    livreur = models.ForeignKey(
+        'authentification.Utilisateur', on_delete=models.CASCADE, related_name='notes_recues',
+        limit_choices_to={'role': 'LIVREUR'},
+    )
+    client = models.ForeignKey(
+        'authentification.Utilisateur', on_delete=models.CASCADE, related_name='notes_livreurs_donnees',
+    )
+    note = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    commentaire = models.TextField('Commentaire', blank=True, default='')
+    date_creation = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Note livreur'
+        verbose_name_plural = 'Notes livreurs'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"{self.livreur.get_full_name()} — {self.note}/5 (interne)"
+
+
 # ─────────────────── Plaintes ───────────────────
 class Plainte(models.Model):
     CATEGORIE_CHOICES = [
+        # Motifs historiques (conservés pour compat des plaintes existantes)
         ('COMMANDE', 'Problème de commande'),
         ('LIVRAISON', 'Problème de livraison'),
         ('PAIEMENT', 'Problème de paiement'),
         ('PRODUIT', 'Problème de produit'),
+        # Motifs précis du cahier des charges (§9.1)
+        ('PRODUIT_NON_RECU', 'Produit non reçu'),
+        ('PRODUIT_DIFFERENT', 'Produit différent'),
+        ('LIVREUR_INJOIGNABLE', 'Livreur injoignable'),
+        ('PAIEMENT_NON_VALIDE', 'Paiement débité sans validation'),
         ('AUTRE', 'Autre'),
     ]
     STATUT_CHOICES = [
@@ -812,6 +1107,17 @@ class Plainte(models.Model):
         related_name='plaintes',
         limit_choices_to={'role': 'ETUDIANT'}
     )
+    # Auteur générique du signalement — un vendeur ou un livreur peut aussi
+    # signaler un problème, pas seulement l'étudiant (§9.1). Nullable : quand
+    # absent, `etudiant` reste l'auteur (compat des plaintes existantes).
+    auteur = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='signalements_envoyes',
+        verbose_name='Auteur du signalement',
+    )
     commande = models.ForeignKey(
         Commande,
         on_delete=models.SET_NULL,
@@ -822,6 +1128,7 @@ class Plainte(models.Model):
     categorie = models.CharField('Catégorie', max_length=20, choices=CATEGORIE_CHOICES, default='AUTRE')
     sujet = models.CharField('Sujet', max_length=200)
     description = models.TextField('Description')
+    photo_preuve = models.ImageField('Photo (preuve)', upload_to='plaintes/', null=True, blank=True)
     statut = models.CharField('Statut', max_length=20, choices=STATUT_CHOICES, default='EN_ATTENTE')
     reponse_admin = models.TextField("Réponse de l'administration", null=True, blank=True)
     date_creation = models.DateTimeField('Date de création', auto_now_add=True)
@@ -834,7 +1141,11 @@ class Plainte(models.Model):
 
     def __str__(self):
         return f"Plainte #{self.id} - {self.etudiant.get_full_name()} - {self.sujet}"
-    
+
+    @property
+    def auteur_effectif(self):
+        return self.auteur or self.etudiant
+
     @classmethod
     def effectuer_cloture(cls, secteur, utilisateur):
         """

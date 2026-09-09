@@ -284,9 +284,92 @@ class SanctionUtilisateur(models.Model):
     def __str__(self):
         return f"{self.get_type_sanction_display()} — {self.utilisateur.get_full_name()}"
 
+    def save(self, *args, **kwargs):
+        est_nouvelle = self.pk is None
+        super().save(*args, **kwargs)
+        if est_nouvelle:
+            from apps.administration.models import JournalAudit
+            JournalAudit.enregistrer(
+                self.prononce_par,
+                f'SANCTION_{self.type_sanction}',
+                self.utilisateur,
+                self.motif,
+            )
+            if self.type_sanction in ('SUSPENSION', 'BANNISSEMENT'):
+                self.utilisateur.est_actif = False
+                self.utilisateur.save(update_fields=['est_actif'])
+
     def lever(self):
         self.est_actif = False
         self.save(update_fields=['est_actif'])
         if self.type_sanction in ('SUSPENSION', 'BANNISSEMENT'):
             self.utilisateur.est_actif = True
             self.utilisateur.save(update_fields=['est_actif'])
+
+
+# ─────────────────── Dossier KYC (carte étudiant) ───────────────────
+class DossierKYC(models.Model):
+    """
+    Vérification de la carte étudiant (recto/verso + selfie), distincte du
+    KYC vendeur extérieur / livreur (CNIB, porté par ProfilVendeur /
+    ProfilLivreur). Un dossier par utilisateur ; une resoumission après
+    rejet met à jour le même dossier.
+    """
+
+    STATUT_CHOICES = [
+        ('EN_ATTENTE', 'En attente'),
+        ('VALIDE', 'Validé'),
+        ('REJETE', 'Rejeté'),
+    ]
+
+    utilisateur = models.OneToOneField(
+        Utilisateur, on_delete=models.CASCADE, related_name='dossier_kyc',
+    )
+    numero_carte = models.CharField('Numéro de carte étudiant', max_length=50)
+    image_carte_recto = models.ImageField('Carte — recto', upload_to='kyc/carte/', null=True, blank=True)
+    image_carte_verso = models.ImageField('Carte — verso', upload_to='kyc/carte/', null=True, blank=True)
+    selfie_etudiant = models.ImageField('Selfie', upload_to='kyc/selfie/', null=True, blank=True)
+
+    statut = models.CharField('Statut', max_length=15, choices=STATUT_CHOICES, default='EN_ATTENTE')
+    motif_rejet = models.TextField('Motif du rejet', null=True, blank=True)
+    verifie_par = models.ForeignKey(
+        Utilisateur, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='kyc_verifies',
+    )
+    date_creation = models.DateTimeField('Date de soumission', auto_now_add=True)
+    date_verification = models.DateTimeField('Date de vérification', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Dossier KYC (carte étudiant)'
+        verbose_name_plural = 'Dossiers KYC (carte étudiant)'
+        ordering = ['-date_creation']
+
+    def __str__(self):
+        return f"KYC {self.utilisateur.get_full_name()} ({self.statut})"
+
+    def resoumettre(self, **champs):
+        for k, v in champs.items():
+            setattr(self, k, v)
+        self.statut = 'EN_ATTENTE'
+        self.motif_rejet = None
+        self.verifie_par = None
+        self.date_verification = None
+        self.save()
+
+    def valider(self, admin):
+        from apps.administration.models import JournalAudit
+        self.statut = 'VALIDE'
+        self.verifie_par = admin
+        self.date_verification = timezone.now()
+        self.motif_rejet = None
+        self.save(update_fields=['statut', 'verifie_par', 'date_verification', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'VALIDATION_KYC_ETUDIANT', self, f'{self.utilisateur.get_full_name()}')
+
+    def rejeter(self, admin, motif):
+        from apps.administration.models import JournalAudit
+        self.statut = 'REJETE'
+        self.verifie_par = admin
+        self.date_verification = timezone.now()
+        self.motif_rejet = motif
+        self.save(update_fields=['statut', 'verifie_par', 'date_verification', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'REJET_KYC_ETUDIANT', self, f'{self.utilisateur.get_full_name()} : {motif}')

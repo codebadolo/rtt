@@ -1,5 +1,5 @@
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework import viewsets, status, filters
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
@@ -7,12 +7,14 @@ from django.contrib.auth import login, logout
 from django.utils import timezone
 from django.db.models import Q
 from django.conf import settings
-from .models import Utilisateur
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import Utilisateur, DossierKYC
 from .serializers import (
     InscriptionGoogleSerializer, InscriptionSerializer, ConnexionSerializer,
     UtilisateurListSerializer, UtilisateurDetailSerializer,
     ChangementMotDePasseSerializer, DemandeReinitialisationSerializer,
     ReinitialisationMotDePasseSerializer,
+    OTPEnvoyerSerializer, OTPVerifierSerializer, DossierKYCSerializer,
 )
 from .permissions import (
     EstAuthentifie, EstAdmin, EstEtudiant,
@@ -385,6 +387,24 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         )
         return Response({'message': 'Rôle modifié avec succès', 'role': nouveau_role})
 
+    @action(detail=False, methods=['post'], url_path='basculer-service')
+    def basculer_service(self, request):
+        """
+        Interrupteur En service / Hors service du livreur connecté (§3.4).
+        """
+        user = request.user
+        if not (hasattr(user, 'est_livreur') and user.est_livreur):
+            return Response({'error': 'Réservé aux livreurs'}, status=status.HTTP_403_FORBIDDEN)
+
+        profil = getattr(user, 'profil_livreur', None)
+        if profil is None:
+            return Response({'error': 'Profil livreur introuvable'}, status=status.HTTP_400_BAD_REQUEST)
+        if not profil.est_valide:
+            return Response({'error': 'Votre profil livreur n\'est pas encore validé'}, status=status.HTTP_403_FORBIDDEN)
+
+        en_service = profil.basculer_service()
+        return Response({'en_service': en_service})
+
     @action(detail=True, methods=['post'], url_path='reset-password')
     def reset_password(self, request, pk=None):
         """
@@ -408,3 +428,80 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Erreur reset password: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ──────────────────── OTP INSCRIPTION ────────────────────
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def otp_envoyer_view(request):
+    """POST /api/auth/otp/envoyer/ — envoie le code OTP (WhatsApp puis SMS, §3.1)."""
+    serializer = OTPEnvoyerSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    resultat = serializer.save()
+    return Response({'message': 'Code envoyé', **resultat})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def otp_verifier_view(request):
+    """POST /api/auth/otp/verifier/ — vérifie le code OTP saisi."""
+    serializer = OTPVerifierSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    return Response({'verifie': True})
+
+
+# ──────────────────── VIEWSET KYC (carte étudiant) ────────────────────
+class DossierKYCViewSet(viewsets.ModelViewSet):
+    """
+    Dossier de vérification de carte étudiant.
+    - Étudiant : crée/consulte son propre dossier
+    - Admin : consulte tous les dossiers, valide/rejette
+    """
+    serializer_class = DossierKYCSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['statut', 'utilisateur']
+    search_fields = ['utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email', 'numero_carte']
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = DossierKYC.objects.select_related('utilisateur', 'verifie_par').all()
+        if hasattr(user, 'est_admin') and user.est_admin:
+            return qs
+        return qs.filter(utilisateur=user)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    @action(detail=True, methods=['post'], url_path='valider', permission_classes=[EstAdmin])
+    def valider(self, request, pk=None):
+        dossier = self.get_object()
+        dossier.valider(request.user)
+        return Response(DossierKYCSerializer(dossier).data)
+
+    @action(detail=True, methods=['post'], url_path='rejeter', permission_classes=[EstAdmin])
+    def rejeter(self, request, pk=None):
+        dossier = self.get_object()
+        motif = request.data.get('motif_rejet', '') or request.data.get('motif', '')
+        if not motif:
+            return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
+        dossier.rejeter(request.user, motif)
+        return Response(DossierKYCSerializer(dossier).data)
+
+    @action(detail=False, methods=['get'], url_path='statistiques', permission_classes=[EstAdmin])
+    def statistiques(self, request):
+        total_etudiants = Utilisateur.objects.filter(role='ETUDIANT').count()
+        en_attente = DossierKYC.objects.filter(statut='EN_ATTENTE').count()
+        valides = DossierKYC.objects.filter(statut='VALIDE').count()
+        rejetes = DossierKYC.objects.filter(statut='REJETE').count()
+        soumis = DossierKYC.objects.count()
+        non_soumis = max(0, total_etudiants - soumis)
+        taux = round(100 * valides / total_etudiants) if total_etudiants else 0
+        return Response({
+            'total_etudiants': total_etudiants,
+            'en_attente': en_attente,
+            'valides': valides,
+            'rejetes': rejetes,
+            'non_soumis': non_soumis,
+            'taux_completion': taux,
+        })

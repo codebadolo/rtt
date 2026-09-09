@@ -9,7 +9,7 @@ import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import useCartStore from '../../stores/cartStore'
 import { roomsApi } from '../../api/sectors'
-import { ordersApi } from '../../api/orders'
+import { ordersApi, creneauxApi } from '../../api/orders'
 import { paymentsApi } from '../../api/payments'
 import { configApi } from '../../api/admin'
 
@@ -143,6 +143,7 @@ export default function StudentCart() {
   } = useForm({
     defaultValues: {
       methode_paiement: 'ORANGE',
+      mode_reception: 'LIVRAISON',
     },
   })
 
@@ -150,6 +151,12 @@ export default function StudentCart() {
     queryKey: ['rooms-all'],
     queryFn: () => roomsApi.list({ est_actif: true, page_size: 500 }),
   })
+
+  const { data: creneauxData } = useQuery({
+    queryKey: ['creneaux-actifs'],
+    queryFn: () => creneauxApi.list({ est_actif: true }),
+  })
+  const creneaux = Array.isArray(creneauxData) ? creneauxData : creneauxData?.results ?? []
 
   const { data: config } = useQuery({
     queryKey: ['configuration'],
@@ -286,6 +293,8 @@ export default function StudentCart() {
 
     orderMutation.mutate({
       salle: parseInt(data.salle),
+      mode_reception: data.mode_reception,
+      creneau: data.creneau || null,
       methode_paiement: data.methode_paiement,
       telephone_paiement: data.telephone_paiement,
       description_besoin: data.description_besoin || '',
@@ -438,6 +447,25 @@ export default function StudentCart() {
               <div className="card space-y-4">
                 <h2 className="font-semibold text-gray-800">Informations de livraison</h2>
 
+                <div>
+                  <label className="label">Mode de réception *</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: 'LIVRAISON', label: 'Livraison', desc: 'Un livreur vous l\'apporte' },
+                      { value: 'SUR_PLACE', label: 'Sur place', desc: 'Vous récupérez chez le vendeur' },
+                    ].map((opt) => (
+                      <label key={opt.value}
+                        className={`flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                          watch('mode_reception') === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}>
+                        <input type="radio" value={opt.value} className="sr-only" {...register('mode_reception', { required: true })} />
+                        <span className="font-semibold text-sm text-gray-800">{opt.label}</span>
+                        <span className="text-xs text-gray-400">{opt.desc}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="label">Salle *</label>
@@ -451,6 +479,17 @@ export default function StudentCart() {
                     {errors.salle && <p className="form-error">{errors.salle.message}</p>}
                   </div>
 
+                  {creneaux.length > 0 && (
+                    <div>
+                      <label className="label">Créneau souhaité</label>
+                      <select className="input" {...register('creneau')}>
+                        <option value="">Dès que possible</option>
+                        {creneaux.map((c) => (
+                          <option key={c.id} value={c.id}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div>

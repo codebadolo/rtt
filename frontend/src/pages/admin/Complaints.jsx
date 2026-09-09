@@ -14,6 +14,10 @@ const CATEGORIES = {
   LIVRAISON: 'Livraison',
   PAIEMENT: 'Paiement',
   PRODUIT: 'Produit',
+  PRODUIT_NON_RECU: 'Produit non reçu',
+  PRODUIT_DIFFERENT: 'Produit différent',
+  LIVREUR_INJOIGNABLE: 'Livreur injoignable',
+  PAIEMENT_NON_VALIDE: 'Paiement débité sans validation',
   AUTRE: 'Autre',
 }
 
@@ -70,10 +74,15 @@ function RepondreModal({ plainte, isOpen, onClose }) {
         <div className="bg-gray-50 rounded-xl p-4 space-y-1">
           <p className="font-semibold text-gray-800 text-sm">{plainte.sujet}</p>
           <p className="text-xs text-gray-500">
-            {CATEGORIES[plainte.categorie]} · {plainte.etudiant_nom}
+            {CATEGORIES[plainte.categorie]} · {plainte.auteur_nom ?? plainte.etudiant_nom}
             {plainte.commande_numero && ` · Commande ${plainte.commande_numero}`}
           </p>
           <p className="text-sm text-gray-600 mt-2">{plainte.description}</p>
+          {plainte.photo_preuve && (
+            <a href={plainte.photo_preuve} target="_blank" rel="noreferrer" className="inline-block mt-2">
+              <img src={plainte.photo_preuve} alt="Preuve" className="h-24 rounded-lg object-cover border border-gray-200" />
+            </a>
+          )}
         </div>
 
         <div>
@@ -213,7 +222,7 @@ export default function AdminComplaints() {
                 {plaintes.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-4">
-                      <p className="font-medium text-gray-800">{p.etudiant_nom}</p>
+                      <p className="font-medium text-gray-800">{p.auteur_nom ?? p.etudiant_nom}</p>
                       {p.commande_numero && (
                         <p className="text-xs text-gray-400">{p.commande_numero}</p>
                       )}

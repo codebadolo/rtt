@@ -10,10 +10,10 @@ import { plaintesApi } from '../../api/complaints'
 import { ordersApi } from '../../api/orders'
 
 const CATEGORIES = [
-  { value: 'COMMANDE', label: 'Problème de commande' },
-  { value: 'LIVRAISON', label: 'Problème de livraison' },
-  { value: 'PAIEMENT', label: 'Problème de paiement' },
-  { value: 'PRODUIT', label: 'Problème de produit' },
+  { value: 'PRODUIT_NON_RECU', label: 'Produit non reçu' },
+  { value: 'PRODUIT_DIFFERENT', label: 'Produit différent' },
+  { value: 'LIVREUR_INJOIGNABLE', label: 'Livreur injoignable' },
+  { value: 'PAIEMENT_NON_VALIDE', label: 'Paiement débité sans validation' },
   { value: 'AUTRE', label: 'Autre' },
 ]
 
@@ -66,12 +66,13 @@ export default function StudentComplaints() {
   const orders = Array.isArray(ordersData) ? ordersData : ordersData?.results ?? []
 
   const onSubmit = (data) => {
-    createMutation.mutate({
-      categorie: data.categorie,
-      sujet: data.sujet,
-      description: data.description,
-      commande: data.commande || null,
-    })
+    const form = new FormData()
+    form.append('categorie', data.categorie)
+    form.append('sujet', data.sujet)
+    form.append('description', data.description)
+    if (data.commande) form.append('commande', data.commande)
+    if (data.photo_preuve?.[0]) form.append('photo_preuve', data.photo_preuve[0])
+    createMutation.mutate(form)
   }
 
   return (
@@ -160,6 +161,11 @@ export default function StudentComplaints() {
                   {...register('description', { required: 'Description requise' })}
                 />
                 {errors.description && <p className="form-error">{errors.description.message}</p>}
+              </div>
+
+              <div>
+                <label className="label">Photo (preuve, optionnel)</label>
+                <input type="file" accept="image/*" className="input text-xs" {...register('photo_preuve')} />
               </div>
 
               <div className="flex gap-3">

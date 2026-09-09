@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from django.db.models import Q
-from .models import Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
+from .models import (
+    Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine,
+    SettlementRecord, CreneauLivraison, JournalAudit, ProfilVendeur, ProfilLivreur,
+)
 from apps.authentification.models import Utilisateur
 
 # ──────────────────── SERIALIZER SECTEUR ────────────────────
@@ -424,3 +427,100 @@ class SettlementCreateSerializer(serializers.Serializer):
     montant = serializers.IntegerField(min_value=100)
     compte = serializers.ChoiceField(choices=['orange', 'moov', 'sank'])
     note = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+# ──────────────────── SERIALIZER CRÉNEAU LIVRAISON ────────────────────
+class CreneauLivraisonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreneauLivraison
+        fields = ['id', 'label', 'heure', 'universite', 'ordre', 'est_actif']
+
+
+# ──────────────────── SERIALIZER JOURNAL D'AUDIT ────────────────────
+class JournalAuditSerializer(serializers.ModelSerializer):
+    auteur_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = JournalAudit
+        fields = ['id', 'auteur', 'auteur_nom', 'action', 'cible_type', 'cible_id', 'details', 'date_creation']
+
+    def get_auteur_nom(self, obj):
+        return obj.auteur.get_full_name() if obj.auteur else 'Système'
+
+
+# ──────────────────── SERIALIZER PROFIL VENDEUR ────────────────────
+class ProfilVendeurSerializer(serializers.ModelSerializer):
+    """
+    Self-service (§3.2) : le vendeur crée/édite sa propre boutique.
+    Les champs de validation restent en lecture seule ici.
+    """
+    utilisateur_nom = serializers.SerializerMethodField()
+    utilisateur_email = serializers.CharField(source='utilisateur.email', read_only=True)
+    note_moyenne = serializers.FloatField(read_only=True)
+
+    class Meta:
+        model = ProfilVendeur
+        fields = [
+            'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email', 'universite',
+            'nom_boutique', 'description', 'categorie_principale', 'emplacement',
+            'mode_livraison', 'capacite_max_commandes',
+            'photo_cnib', 'photo_visage', 'adresse_commerce', 'horaires_disponibilite',
+            'est_valide', 'motif_rejet', 'est_actif', 'note_moyenne',
+            'date_creation', 'date_modification',
+        ]
+        read_only_fields = ['id', 'utilisateur', 'est_valide', 'motif_rejet', 'date_creation', 'date_modification']
+
+    def get_utilisateur_nom(self, obj):
+        return obj.utilisateur.get_full_name()
+
+
+class ProfilVendeurAdminSerializer(ProfilVendeurSerializer):
+    """Vue admin — mêmes champs, plus le détail de validation (lecture)."""
+    valide_par_nom = serializers.SerializerMethodField()
+
+    class Meta(ProfilVendeurSerializer.Meta):
+        fields = ProfilVendeurSerializer.Meta.fields + ['valide_par_nom']
+
+    def get_valide_par_nom(self, obj):
+        return obj.valide_par.get_full_name() if obj.valide_par else None
+
+
+# ──────────────────── SERIALIZER PROFIL LIVREUR ────────────────────
+class ProfilLivreurSerializer(serializers.ModelSerializer):
+    utilisateur_nom = serializers.SerializerMethodField()
+    utilisateur_email = serializers.CharField(source='utilisateur.email', read_only=True)
+    boutiques_noms = serializers.SerializerMethodField()
+    note_moyenne = serializers.FloatField(read_only=True)
+    est_volant = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = ProfilLivreur
+        fields = [
+            'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email', 'universite',
+            'photo_cnib', 'photo_visage', 'zones_livraison',
+            'boutiques_attribuees', 'boutiques_noms', 'capacite_max_livraisons',
+            'en_service', 'compteur_abandon', 'est_volant',
+            'est_valide', 'motif_rejet', 'note_moyenne',
+            'date_creation', 'date_modification',
+        ]
+        read_only_fields = [
+            'id', 'utilisateur', 'boutiques_attribuees', 'compteur_abandon',
+            'est_valide', 'motif_rejet', 'date_creation', 'date_modification',
+        ]
+
+    def get_utilisateur_nom(self, obj):
+        return obj.utilisateur.get_full_name()
+
+    def get_boutiques_noms(self, obj):
+        return [b.nom_boutique for b in obj.boutiques_attribuees.all()]
+
+
+class ProfilLivreurAdminSerializer(ProfilLivreurSerializer):
+    valide_par_nom = serializers.SerializerMethodField()
+
+    class Meta(ProfilLivreurSerializer.Meta):
+        read_only_fields = [f for f in ProfilLivreurSerializer.Meta.read_only_fields if f != 'boutiques_attribuees']
+        fields = ProfilLivreurSerializer.Meta.fields + ['valide_par_nom']
+
+    def get_valide_par_nom(self, obj):
+        return obj.valide_par.get_full_name() if obj.valide_par else None

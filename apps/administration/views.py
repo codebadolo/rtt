@@ -5,14 +5,20 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
-from .models import Universite, Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration, HoraireSemaine, SettlementRecord
+from .models import (
+    Universite, Secteur, Salle, Produit, Variante, Option, HoraireCommande, Configuration,
+    HoraireSemaine, SettlementRecord, CreneauLivraison, JournalAudit, ProfilLivreur, ProfilVendeur,
+)
 from .serializers import (
     SecteurListSerializer, SecteurDetailSerializer,
     SalleListSerializer, SalleDetailSerializer,
     ProduitListSerializer, ProduitDetailSerializer,
     VarianteSerializer, OptionSerializer,
     HoraireCommandeSerializer, DashboardStatsSerializer,
-    ConfigurationSerializer, SettlementRecordSerializer, SettlementCreateSerializer
+    ConfigurationSerializer, SettlementRecordSerializer, SettlementCreateSerializer,
+    CreneauLivraisonSerializer, JournalAuditSerializer,
+    ProfilVendeurSerializer, ProfilVendeurAdminSerializer,
+    ProfilLivreurSerializer, ProfilLivreurAdminSerializer,
 )
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
 from .permissions import EstAdminOuLectureSeule, PeutGererProduits, PeutGererSecteurs
@@ -775,6 +781,182 @@ def settlements_view(request):
     )
 
     return Response(SettlementRecordSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+# ──────────────────── PROFIL VENDEUR (self-service, §3.2) ────────────────────
+@drf_api_view(['GET', 'POST', 'PATCH'])
+def profil_vendeur_view(request):
+    """
+    GET   : mon profil vendeur (404 si aucune boutique créée)
+    POST  : « Créer ma boutique » — depuis un compte client existant
+    PATCH : mettre à jour ma boutique
+    """
+    if not request.user.is_authenticated:
+        return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    profil = ProfilVendeur.objects.filter(utilisateur=request.user).first()
+
+    if request.method == 'GET':
+        if not profil:
+            return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ProfilVendeurSerializer(profil).data)
+
+    if request.method == 'POST':
+        if profil:
+            return Response({'error': 'Vous avez déjà une boutique'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = ProfilVendeurSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # Vendeurs déjà connus du pilote : activation immédiate décidée par l'admin
+        # via l'interface admin — l'auto-inscription reste toujours en attente (§3.2)
+        instance = serializer.save(utilisateur=request.user, est_valide=False)
+        # Le rôle passe en VENDEUR_* pour activer le tableau de bord dédié
+        if request.user.role == 'ETUDIANT':
+            request.user.role = (
+                'VENDEUR_EXTERIEUR' if instance.adresse_commerce else 'VENDEUR_INTERIEUR'
+            )
+            request.user.save(update_fields=['role'])
+        return Response(ProfilVendeurSerializer(instance).data, status=status.HTTP_201_CREATED)
+
+    # PATCH
+    if not profil:
+        return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
+    serializer = ProfilVendeurSerializer(profil, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
+
+
+# ──────────────────── PROFIL LIVREUR (self-service, §3.4) ────────────────────
+@drf_api_view(['GET', 'PATCH'])
+def profil_livreur_view(request):
+    """
+    GET   : mon profil livreur (le statut livreur est activé par un admin — §3.4)
+    PATCH : mettre à jour mes zones / basculer en_service
+    """
+    if not request.user.is_authenticated:
+        return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    profil = ProfilLivreur.objects.filter(utilisateur=request.user).first()
+    if not profil:
+        return Response({'error': 'Aucun profil livreur — contactez un administrateur'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(ProfilLivreurSerializer(profil).data)
+
+    # PATCH — le livreur ne peut modifier que ses zones, son statut en_service et ses documents KYC
+    champs_autorises = ('zones_livraison', 'en_service', 'photo_cnib', 'photo_visage')
+    data = {k: v for k, v in request.data.items() if k in champs_autorises}
+    serializer = ProfilLivreurSerializer(profil, data=data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
+
+
+# ──────────────────── ADMIN — VALIDATION VENDEURS ────────────────────
+class AdminVendeurViewSet(viewsets.ReadOnlyModelViewSet):
+    """Liste + validation des boutiques vendeurs par l'administration (§3.2/§3.3/§12)."""
+    queryset = ProfilVendeur.objects.select_related('utilisateur', 'universite', 'emplacement', 'valide_par').all()
+    serializer_class = ProfilVendeurAdminSerializer
+    permission_classes = [IsAuthenticated, EstAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['est_valide', 'est_actif', 'universite', 'categorie_principale']
+    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+
+    @action(detail=True, methods=['post'], url_path='valider')
+    def valider(self, request, pk=None):
+        profil = self.get_object()
+        profil.valider(request.user)
+        return Response(ProfilVendeurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['post'], url_path='rejeter')
+    def rejeter(self, request, pk=None):
+        profil = self.get_object()
+        motif = request.data.get('motif', '') or request.data.get('motif_rejet', '')
+        if not motif:
+            return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
+        profil.rejeter(request.user, motif)
+        return Response(ProfilVendeurAdminSerializer(profil).data)
+
+
+# ──────────────────── ADMIN — VALIDATION LIVREURS ────────────────────
+class AdminLivreurViewSet(viewsets.ReadOnlyModelViewSet):
+    """Liste + validation des livreurs par l'administration (§3.4/§12)."""
+    queryset = ProfilLivreur.objects.select_related('utilisateur', 'universite', 'valide_par').prefetch_related('boutiques_attribuees').all()
+    serializer_class = ProfilLivreurAdminSerializer
+    permission_classes = [IsAuthenticated, EstAdmin]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['est_valide', 'en_service', 'universite']
+    search_fields = ['utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+
+    @action(detail=True, methods=['post'], url_path='valider')
+    def valider(self, request, pk=None):
+        profil = self.get_object()
+        profil.valider(request.user)
+        return Response(ProfilLivreurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['post'], url_path='rejeter')
+    def rejeter(self, request, pk=None):
+        profil = self.get_object()
+        motif = request.data.get('motif', '') or request.data.get('motif_rejet', '')
+        if not motif:
+            return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
+        profil.rejeter(request.user, motif)
+        return Response(ProfilLivreurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['patch'], url_path='boutiques')
+    def boutiques(self, request, pk=None):
+        """Affecte manuellement les boutiques d'un livreur (§7). Body: {"boutiques": [id, ...]}"""
+        profil = self.get_object()
+        ids = request.data.get('boutiques', [])
+        profil.boutiques_attribuees.set(ProfilVendeur.objects.filter(id__in=ids))
+        return Response(ProfilLivreurAdminSerializer(profil).data)
+
+
+# ──────────────────── VIEWSET CRÉNEAU LIVRAISON ────────────────────
+class CreneauLivraisonViewSet(viewsets.ModelViewSet):
+    """Créneaux fixes de retrait/livraison (§4.2)."""
+    queryset = CreneauLivraison.objects.all()
+    serializer_class = CreneauLivraisonSerializer
+    permission_classes = [IsAuthenticated, EstAdminOuLectureSeule]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['universite', 'est_actif']
+
+
+# ──────────────────── VIEWSET JOURNAL D'AUDIT ────────────────────
+class JournalAuditViewSet(viewsets.ReadOnlyModelViewSet):
+    """Journal des actions administratives (§3.5/§12) — lecture admin seule."""
+    queryset = JournalAudit.objects.select_related('auteur').all()
+    serializer_class = JournalAuditSerializer
+    permission_classes = [IsAuthenticated, EstAdmin]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    filterset_fields = ['action', 'cible_type', 'auteur']
+    search_fields = ['action', 'details', 'auteur__nom', 'auteur__prenom']
+    ordering = ['-date_creation']
+
+
+# ──────────────────── LIVREURS EN SERVICE ────────────────────
+@drf_api_view(['GET'])
+def livreurs_en_service_view(request):
+    """
+    GET /api/admin/livreurs-en-service/
+    Vue admin pour repérer un manque de bras à une heure de pointe (§12).
+    """
+    if not (request.user.is_authenticated and request.user.est_admin):
+        return Response({'error': 'Permission refusée'}, status=status.HTTP_403_FORBIDDEN)
+
+    profils = ProfilLivreur.objects.filter(en_service=True, est_valide=True).select_related('utilisateur')
+    data = [
+        {
+            'id': p.utilisateur_id,
+            'nom': p.utilisateur.get_full_name(),
+            'telephone': p.utilisateur.telephone,
+            'boutiques': [b.nom_boutique for b in p.boutiques_attribuees.all()],
+            'volant': p.est_volant,
+            'compteur_abandon': p.compteur_abandon,
+        }
+        for p in profils
+    ]
+    return Response({'count': len(data), 'livreurs': data})
 
 
 # ──────────────────── SYNC STATUT SETTLEMENT ────────────────────

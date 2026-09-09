@@ -22,6 +22,7 @@ import StudentOrders from './pages/student/Orders'
 import StudentOrderDetail from './pages/student/OrderDetail'
 import StudentProfile from './pages/student/Profile'
 import StudentComplaints from './pages/student/Complaints'
+import StudentKYC from './pages/student/KYC'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -38,6 +39,11 @@ import AdminConfiguration from './pages/admin/Configuration'
 import AdminComptabilite from './pages/admin/Comptabilite'
 import AdminComplaints from './pages/admin/Complaints'
 import AdminPromotions from './pages/admin/Promotions'
+import AdminVendeurs from './pages/admin/Vendeurs'
+import AdminLivreurs from './pages/admin/Livreurs'
+import AdminRemboursements from './pages/admin/Remboursements'
+import AdminJournalAudit from './pages/admin/JournalAudit'
+import AdminKYCManagement from './pages/admin/KYCManagement'
 
 // Chef pages
 import ChefDashboard from './pages/chef/Dashboard'
@@ -48,11 +54,13 @@ import ChefLivreurs from './pages/chef/Livreurs'
 // Livreur pages
 import LivreurDashboard from './pages/livreur/Dashboard'
 import LivreurHistory from './pages/livreur/History'
+import LivreurProfil from './pages/livreur/Profil'
 
 // Vendeur pages
 import VendeurDashboard from './pages/vendeur/Dashboard'
 import VendeurOrders from './pages/vendeur/Orders'
 import VendeurWallet from './pages/vendeur/Wallet'
+import VendeurProfil from './pages/vendeur/Profil'
 
 function RootRedirect() {
   const { isAuthenticated, isLoading, user } = useAuthStore()
@@ -125,6 +133,7 @@ export default function App() {
               <Route path="/commandes" element={<StudentOrders />} />
               <Route path="/commandes/:id" element={<StudentOrderDetail />} />
               <Route path="/plaintes" element={<StudentComplaints />} />
+              <Route path="/kyc" element={<StudentKYC />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>
@@ -151,6 +160,11 @@ export default function App() {
               <Route path="/comptabilite" element={<AdminComptabilite />} />
               <Route path="/plaintes" element={<AdminComplaints />} />
               <Route path="/promotions" element={<AdminPromotions />} />
+              <Route path="/vendeurs" element={<AdminVendeurs />} />
+              <Route path="/livreurs" element={<AdminLivreurs />} />
+              <Route path="/remboursements" element={<AdminRemboursements />} />
+              <Route path="/journal-audit" element={<AdminJournalAudit />} />
+              <Route path="/kyc" element={<AdminKYCManagement />} />
             </Routes>
           </ProtectedRoute>
         }
@@ -180,7 +194,9 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LivreurDashboard />} />
               <Route path="/historique" element={<LivreurHistory />} />
-              <Route path="/profil" element={<StudentProfile />} />
+              <Route path="/plaintes" element={<StudentComplaints />} />
+              <Route path="/profil" element={<LivreurProfil />} />
+              <Route path="/compte" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>
         }
@@ -196,7 +212,9 @@ export default function App() {
               <Route path="/commandes" element={<VendeurOrders />} />
               <Route path="/wallet" element={<VendeurWallet />} />
               <Route path="/produits" element={<AdminProducts />} />
-              <Route path="/profil" element={<StudentProfile />} />
+              <Route path="/plaintes" element={<StudentComplaints />} />
+              <Route path="/profil" element={<VendeurProfil />} />
+              <Route path="/compte" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>
         }

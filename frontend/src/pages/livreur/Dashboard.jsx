@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   Truck, Package, CheckCircle, MapPin,
-  History, TrendingUp, ChevronRight, QrCode,
+  History, TrendingUp, ChevronRight, QrCode, Power,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -12,7 +12,7 @@ import Badge from '../../components/Badge'
 import Modal from '../../components/Modal'
 import QRScannerModal from '../../components/QRScannerModal'
 import useAuthStore from '../../stores/authStore'
-import { ordersApi } from '../../api/orders'
+import { ordersApi, profilsApi } from '../../api/orders'
 
 function LignesDetail({ lignes, totalHt, fraisService, totalTtc }) {
   if (!lignes?.length) return null
@@ -98,6 +98,15 @@ function OrderDistributeModal({ order, isOpen, onClose }) {
             {new Date(order.date_creation ?? order.created_at).toLocaleDateString('fr-FR')}
           </span>
         </div>
+
+        {order.code_retrait && order.statut === 'PRETE' && (
+          <div className="p-3 bg-orange-50 border-2 border-orange-200 rounded-xl text-center">
+            <p className="text-xs text-orange-500 font-medium uppercase tracking-wide">
+              Comparez avec le code sur l'étiquette du vendeur
+            </p>
+            <p className="text-2xl font-mono font-extrabold text-orange-600 tracking-widest mt-1">{order.code_retrait}</p>
+          </div>
+        )}
 
         {/* Delivery info */}
         <div className="p-4 bg-orange-50 rounded-xl space-y-2">
@@ -190,6 +199,21 @@ export default function LivreurDashboard() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const queryClient = useQueryClient()
 
+  const { data: profilLivreur } = useQuery({
+    queryKey: ['mon-profil-livreur'],
+    queryFn: () => profilsApi.getLivreur(),
+  })
+
+  const toggleService = useMutation({
+    mutationFn: () => profilsApi.basculerService(),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['mon-profil-livreur'], (old) => old ? { ...old, en_service: data.en_service } : old)
+      queryClient.invalidateQueries({ queryKey: ['livreur-orders'] })
+      toast.success(data.en_service ? 'Vous êtes en service' : 'Vous êtes hors service')
+    },
+    onError: (e) => toast.error(e.response?.data?.error ?? 'Erreur'),
+  })
+
   const acceptMission = useMutation({
     mutationFn: (id) => ordersApi.accepterMission(id),
     onSuccess: () => {
@@ -229,14 +253,34 @@ export default function LivreurDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">Bonjour, {user?.prenom} !</h1>
             <p className="text-gray-500 mt-1">Tableau de bord — Livreur</p>
           </div>
-          <button
-            onClick={() => setScannerOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm shadow-sm transition-colors flex-shrink-0"
-          >
-            <QrCode className="h-4 w-4" />
-            Scanner QR
-          </button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {profilLivreur && (
+              <button
+                onClick={() => toggleService.mutate()}
+                disabled={!profilLivreur.est_valide || toggleService.isPending}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-colors disabled:opacity-50 ${
+                  profilLivreur.en_service ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+              >
+                <Power className="h-4 w-4" />
+                {profilLivreur.en_service ? 'En service' : 'Hors service'}
+              </button>
+            )}
+            <button
+              onClick={() => setScannerOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold text-sm shadow-sm transition-colors flex-shrink-0"
+            >
+              <QrCode className="h-4 w-4" />
+              Scanner QR
+            </button>
+          </div>
         </div>
+
+        {profilLivreur && !profilLivreur.en_service && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 text-sm text-amber-700">
+            Vous êtes hors service — aucune nouvelle commande du pool ne vous sera proposée tant que vous ne basculez pas en service.
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

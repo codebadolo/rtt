@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle, ChefHat, Clock, Package, X } from 'lucide-react'
+import { CheckCircle, ChefHat, Clock, Package, ThumbsUp, X } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 import DashboardLayout from '../../layouts/DashboardLayout'
@@ -10,6 +10,7 @@ import { ordersApi } from '../../api/orders'
 
 const TABS = [
   { value: 'EN_ATTENTE',     label: 'En attente',      icon: Clock },
+  { value: 'ACCEPTEE',       label: 'Acceptées',       icon: ThumbsUp },
   { value: 'EN_PREPARATION', label: 'En préparation',  icon: ChefHat },
   { value: 'PRETE',          label: 'Prêtes',          icon: Package },
   { value: 'LIVREE',         label: 'Livrées',         icon: CheckCircle },
@@ -44,6 +45,16 @@ function OrderModal({ order, onClose }) {
     onError: (e) => toast.error(e.response?.data?.detail ?? 'Erreur'),
   })
 
+  const prepMutation = useMutation({
+    mutationFn: () => ordersApi.marquerEnPreparation(order.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vendeur-orders'] })
+      toast.success('Préparation démarrée')
+      onClose()
+    },
+    onError: (e) => toast.error(e.response?.data?.error ?? 'Erreur'),
+  })
+
   if (!order) return null
   const o = detail ?? order
 
@@ -52,18 +63,27 @@ function OrderModal({ order, onClose }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <Badge status={order.statut} />
-          {order.heure_souhaitee && (
+          {o.creneau_label && (
             <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
-              {order.heure_souhaitee}
+              {o.creneau_label}
             </span>
           )}
         </div>
+
+        {o.code_retrait && (
+          <div className="p-3 bg-orange-50 border-2 border-orange-200 rounded-xl text-center">
+            <p className="text-xs text-orange-500 font-medium uppercase tracking-wide">Code de retrait — à écrire sur l'étiquette</p>
+            <p className="text-2xl font-mono font-extrabold text-orange-600 tracking-widest mt-1">{o.code_retrait}</p>
+          </div>
+        )}
 
         {/* Client */}
         <div className="p-3 bg-gray-50 rounded-xl">
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Client</p>
           <p className="font-semibold text-gray-800 mt-1">{o.etudiant_nom ?? '—'}</p>
-          <p className="text-sm text-gray-500">{o.salle_nom ?? ''} — {o.secteur_nom ?? ''}</p>
+          <p className="text-sm text-gray-500">
+            {o.mode_reception_display ?? 'Livraison'} · {o.salle_nom ?? ''} — {o.secteur_nom ?? ''}
+          </p>
         </div>
 
         {/* Articles */}
@@ -118,6 +138,15 @@ function OrderModal({ order, onClose }) {
                 : <><CheckCircle className="h-4 w-4" /> Accepter</>}
             </button>
           </div>
+        )}
+
+        {order.statut === 'ACCEPTEE' && (
+          <button onClick={() => prepMutation.mutate()} disabled={prepMutation.isPending}
+            className="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold disabled:opacity-60 flex items-center justify-center gap-2">
+            {prepMutation.isPending
+              ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <><ChefHat className="h-4 w-4" /> Démarrer la préparation</>}
+          </button>
         )}
 
         {order.statut === 'EN_PREPARATION' && (
@@ -175,9 +204,9 @@ export default function VendeurOrders() {
           <div className="space-y-3">
             {orders.map((order) => (
               <div key={order.id}
-                onClick={() => ['EN_ATTENTE', 'EN_PREPARATION'].includes(order.statut) ? setSelected(order) : null}
+                onClick={() => ['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? setSelected(order) : null}
                 className={`bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-4 ${
-                  ['EN_ATTENTE', 'EN_PREPARATION'].includes(order.statut) ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+                  ['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
                 }`}>
                 <div className={`p-2.5 rounded-xl flex-shrink-0 ${
                   order.statut === 'EN_ATTENTE' ? 'bg-yellow-100' :
@@ -201,7 +230,7 @@ export default function VendeurOrders() {
                 <div className="text-right flex-shrink-0">
                   <p className="font-bold text-orange-500">{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} F</p>
                   {order.heure_souhaitee && <p className="text-xs text-gray-400 mt-0.5">{order.heure_souhaitee}</p>}
-                  {['EN_ATTENTE', 'EN_PREPARATION'].includes(order.statut) && (
+                  {['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) && (
                     <span className="text-xs text-orange-500 font-medium mt-1 block">Tap →</span>
                   )}
                 </div>

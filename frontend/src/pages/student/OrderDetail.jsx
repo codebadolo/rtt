@@ -13,6 +13,7 @@ import {
   Printer,
   QrCode,
   Smartphone,
+  Star,
   XCircle,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -146,6 +147,92 @@ function QRCodeSection({ orderId, statut }) {
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function StarInput({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-1">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button key={n} type="button" onClick={() => onChange(n)} className="p-0.5">
+          <Star className={`h-7 w-7 transition-colors ${n <= value ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function NotationCard({ order, queryClient }) {
+  const [noteVendeur, setNoteVendeur] = useState(0)
+  const [commentaireVendeur, setCommentaireVendeur] = useState('')
+  const [noteLivreur, setNoteLivreur] = useState(0)
+  const [commentaireLivreur, setCommentaireLivreur] = useState('')
+
+  const besoinNoterVendeur = !order.a_note_vendeur
+  const besoinNoterLivreur = order.mode_reception === 'LIVRAISON' && !order.a_note_livreur
+
+  const noterVendeurMut = useMutation({
+    mutationFn: () => ordersApi.noterVendeur({ commande: order.id, note: noteVendeur, commentaire: commentaireVendeur }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['order', String(order.id)] }); toast.success('Merci pour votre avis !') },
+    onError: (e) => toast.error(e.response?.data?.commande?.[0] ?? e.response?.data?.detail ?? 'Erreur'),
+  })
+  const noterLivreurMut = useMutation({
+    mutationFn: () => ordersApi.noterLivreur({ commande: order.id, note: noteLivreur, commentaire: commentaireLivreur }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['order', String(order.id)] }); toast.success('Merci pour votre avis !') },
+    onError: (e) => toast.error(e.response?.data?.commande?.[0] ?? e.response?.data?.detail ?? 'Erreur'),
+  })
+
+  if (!besoinNoterVendeur && !besoinNoterLivreur) return null
+
+  return (
+    <div className="border-2 border-amber-200 bg-amber-50 rounded-2xl p-5 space-y-5">
+      <div className="flex items-center gap-2">
+        <Star className="h-5 w-5 text-amber-500" />
+        <h2 className="font-bold text-amber-800">Notez votre expérience</h2>
+      </div>
+
+      {besoinNoterVendeur && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-gray-700">Le vendeur</p>
+          <StarInput value={noteVendeur} onChange={setNoteVendeur} />
+          <textarea
+            rows={2}
+            placeholder="Commentaire (optionnel)"
+            className="input resize-none text-sm"
+            value={commentaireVendeur}
+            onChange={(e) => setCommentaireVendeur(e.target.value)}
+          />
+          <button
+            onClick={() => noterVendeurMut.mutate()}
+            disabled={noteVendeur === 0 || noterVendeurMut.isPending}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold"
+          >
+            {noterVendeurMut.isPending ? 'Envoi…' : 'Envoyer'}
+          </button>
+        </div>
+      )}
+
+      {besoinNoterLivreur && (
+        <div className="space-y-2 pt-3 border-t border-amber-200">
+          <p className="text-sm font-semibold text-gray-700">Le livreur</p>
+          <StarInput value={noteLivreur} onChange={setNoteLivreur} />
+          <textarea
+            rows={2}
+            placeholder="Commentaire (optionnel)"
+            className="input resize-none text-sm"
+            value={commentaireLivreur}
+            onChange={(e) => setCommentaireLivreur(e.target.value)}
+          />
+          <button
+            onClick={() => noterLivreurMut.mutate()}
+            disabled={noteLivreur === 0 || noterLivreurMut.isPending}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white text-sm font-semibold"
+          >
+            {noterLivreurMut.isPending ? 'Envoi…' : 'Envoyer'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -458,6 +545,9 @@ export default function StudentOrderDetail() {
 
         {/* QR Code de livraison */}
         {canShowQR && <QRCodeSection orderId={order.id} statut={order.statut} />}
+
+        {/* Notation (§10) */}
+        {order.statut === 'LIVREE' && <NotationCard order={order} queryClient={queryClient} />}
 
         {/* Actions */}
         <div className="flex gap-3 flex-wrap">

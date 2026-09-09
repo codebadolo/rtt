@@ -3,7 +3,10 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
 from django.db.models import Sum, Count
-from .models import Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, ClotureJournaliere, PaiementSenfenico, Plainte
+from .models import (
+    Commande, LigneCommande, OptionLigneCommande, HistoriqueCommande, ClotureJournaliere,
+    PaiementSenfenico, Plainte, Remboursement, NoteVendeur, NoteLivreur,
+)
 
 # ──────────────────── ADMIN LIGNE COMMANDE (INLINE) ────────────────────
 class OptionLigneCommandeInline(admin.TabularInline):
@@ -361,11 +364,11 @@ class PlainteAdmin(admin.ModelAdmin):
     list_filter = ['statut', 'categorie', 'date_creation']
     search_fields = ['sujet', 'description', 'etudiant__nom', 'etudiant__prenom', 'etudiant__email']
     ordering = ['-date_creation']
-    readonly_fields = ['etudiant', 'commande', 'categorie', 'sujet', 'description', 'date_creation', 'date_modification']
+    readonly_fields = ['etudiant', 'auteur', 'commande', 'categorie', 'sujet', 'description', 'photo_preuve', 'date_creation', 'date_modification']
 
     fieldsets = (
         ('Plainte', {
-            'fields': ('etudiant', 'commande', 'categorie', 'sujet', 'description'),
+            'fields': ('etudiant', 'auteur', 'commande', 'categorie', 'sujet', 'description', 'photo_preuve'),
         }),
         ('Traitement', {
             'fields': ('statut', 'reponse_admin'),
@@ -412,3 +415,51 @@ class PlainteAdmin(admin.ModelAdmin):
         updated = queryset.update(statut='REJETEE')
         self.message_user(request, f'{updated} plainte(s) rejetée(s).')
     marquer_rejetees.short_description = 'Marquer comme rejetées'
+
+
+# ──────────────────── ADMIN REMBOURSEMENT ────────────────────
+@admin.register(Remboursement)
+class RemboursementAdmin(admin.ModelAdmin):
+    list_display = ['commande', 'montant', 'automatique', 'statut_badge', 'traite_par', 'date_creation']
+    list_filter = ['statut', 'automatique', 'date_creation']
+    search_fields = ['commande__numero_commande', 'motif']
+    ordering = ['-date_creation']
+    readonly_fields = ['commande', 'montant', 'motif', 'automatique', 'date_creation']
+    actions = ['marquer_traites']
+
+    def statut_badge(self, obj):
+        colors = {'EN_ATTENTE': '#FF9800', 'TRAITE': '#4CAF50', 'ECHOUE': '#F44336'}
+        color = colors.get(obj.statut, '#9E9E9E')
+        return format_html('<span style="background: {}; color: white; padding: 2px 8px; border-radius: 4px;">{}</span>', color, obj.get_statut_display())
+    statut_badge.short_description = 'Statut'
+
+    def marquer_traites(self, request, queryset):
+        count = 0
+        for remb in queryset.filter(statut='EN_ATTENTE'):
+            remb.marquer_traite(request.user)
+            count += 1
+        self.message_user(request, f'{count} remboursement(s) marqué(s) traité(s).')
+    marquer_traites.short_description = 'Marquer comme traités'
+
+
+# ──────────────────── ADMIN NOTATION ────────────────────
+@admin.register(NoteVendeur)
+class NoteVendeurAdmin(admin.ModelAdmin):
+    list_display = ['vendeur', 'note', 'client', 'date_creation']
+    list_filter = ['note', 'date_creation']
+    search_fields = ['vendeur__nom_boutique', 'client__nom', 'client__prenom']
+    ordering = ['-date_creation']
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(NoteLivreur)
+class NoteLivreurAdmin(admin.ModelAdmin):
+    list_display = ['livreur', 'note', 'client', 'date_creation']
+    list_filter = ['note', 'date_creation']
+    search_fields = ['livreur__nom', 'livreur__prenom', 'client__nom', 'client__prenom']
+    ordering = ['-date_creation']
+
+    def has_add_permission(self, request):
+        return False

@@ -6,6 +6,7 @@ from django.db import models
 from .models import (
     Secteur, Salle, Produit, Variante, Option, HoraireCommande,
     Configuration, SettlementRecord, Universite, ProfilVendeur, ProfilLivreur,
+    CreneauLivraison, JournalAudit,
 )
 
 # ──────────────────── ADMIN SECTEUR ────────────────────
@@ -178,6 +179,7 @@ class ProduitAdmin(admin.ModelAdmin):
     """
     list_display = [
         'nom',
+        'vendeur',
         'categorie',
         'prix_base',
         'apercu_image',
@@ -185,13 +187,13 @@ class ProduitAdmin(admin.ModelAdmin):
         'nombre_variantes',
         'est_actif'
     ]
-    list_filter = ['categorie', 'est_actif', 'stock_limite']
-    search_fields = ['nom', 'description']
+    list_filter = ['categorie', 'est_actif', 'stock_limite', 'vendeur']
+    search_fields = ['nom', 'description', 'vendeur__nom_boutique']
     ordering = ['categorie', 'nom']
-    
+
     fieldsets = (
         ('Informations générales', {
-            'fields': ('nom', 'description', 'categorie', 'prix_base', 'est_actif')
+            'fields': ('nom', 'vendeur', 'description', 'categorie', 'prix_base', 'est_actif')
         }),
         ('Image', {
             'fields': ('image',),
@@ -486,23 +488,30 @@ class ProfilVendeurAdmin(admin.ModelAdmin):
 # ──────────────────── ADMIN PROFIL LIVREUR ────────────────────
 @admin.register(ProfilLivreur)
 class ProfilLivreurAdmin(admin.ModelAdmin):
-    list_display = ['utilisateur', 'universite', 'capacite_max_livraisons', 'zones_count', 'est_valide']
-    list_filter = ['est_valide', 'universite']
+    list_display = ['utilisateur', 'universite', 'en_service_badge', 'capacite_max_livraisons', 'zones_count', 'boutiques_count', 'compteur_abandon', 'est_valide']
+    list_filter = ['est_valide', 'en_service', 'universite']
     search_fields = ['utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
     ordering = ['-date_creation']
-    readonly_fields = ['date_creation', 'date_modification', 'date_validation', 'valide_par']
-    filter_horizontal = ['zones_livraison']
+    readonly_fields = ['date_creation', 'date_modification', 'date_validation', 'valide_par', 'compteur_abandon']
+    filter_horizontal = ['zones_livraison', 'boutiques_attribuees']
     actions = ['valider_livreurs', 'rejeter_livreurs']
 
     fieldsets = (
         ('Informations', {
-            'fields': ('utilisateur', 'universite', 'capacite_max_livraisons', 'zones_livraison'),
+            'fields': ('utilisateur', 'universite', 'capacite_max_livraisons', 'en_service'),
+        }),
+        ('Affectation', {
+            'fields': ('boutiques_attribuees', 'zones_livraison'),
+            'description': 'Vide = livreur "volant", sans boutique fixe (§7)',
         }),
         ('KYC', {
             'fields': ('photo_cnib', 'photo_visage'),
         }),
         ('Validation', {
             'fields': ('est_valide', 'valide_par', 'date_validation', 'motif_rejet'),
+        }),
+        ('Suivi', {
+            'fields': ('compteur_abandon',),
         }),
         ('Métadonnées', {
             'fields': ('date_creation', 'date_modification'),
@@ -513,6 +522,16 @@ class ProfilLivreurAdmin(admin.ModelAdmin):
     def zones_count(self, obj):
         return obj.zones_livraison.count()
     zones_count.short_description = 'Zones choisies'
+
+    def boutiques_count(self, obj):
+        return obj.boutiques_attribuees.count() or 'Volant'
+    boutiques_count.short_description = 'Boutiques'
+
+    def en_service_badge(self, obj):
+        color = '#4CAF50' if obj.en_service else '#9E9E9E'
+        label = 'En service' if obj.en_service else 'Hors service'
+        return format_html('<span style="background: {}; color: white; padding: 2px 8px; border-radius: 4px;">{}</span>', color, label)
+    en_service_badge.short_description = 'Disponibilité'
 
     def valider_livreurs(self, request, queryset):
         for profil in queryset:
@@ -525,3 +544,30 @@ class ProfilLivreurAdmin(admin.ModelAdmin):
             profil.rejeter(request.user, 'Rejeté par l\'administrateur')
         self.message_user(request, f'{queryset.count()} livreur(s) rejeté(s).')
     rejeter_livreurs.short_description = 'Rejeter les livreurs sélectionnés'
+
+
+# ──────────────────── ADMIN CRÉNEAU LIVRAISON ────────────────────
+@admin.register(CreneauLivraison)
+class CreneauLivraisonAdmin(admin.ModelAdmin):
+    list_display = ['label', 'heure', 'universite', 'ordre', 'est_actif']
+    list_filter = ['est_actif', 'universite']
+    ordering = ['ordre', 'heure']
+
+
+# ──────────────────── ADMIN JOURNAL D'AUDIT ────────────────────
+@admin.register(JournalAudit)
+class JournalAuditAdmin(admin.ModelAdmin):
+    list_display = ['date_creation', 'action', 'auteur', 'cible_type', 'cible_id']
+    list_filter = ['action', 'cible_type', 'date_creation']
+    search_fields = ['action', 'auteur__nom', 'auteur__prenom', 'details']
+    ordering = ['-date_creation']
+    readonly_fields = ['auteur', 'action', 'cible_type', 'cible_id', 'details', 'date_creation']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

@@ -7,8 +7,16 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from .models import Commande, HistoriqueCommande, StatutCommande, PaiementSenfenico, Plainte, QRCodeCommande
-from .serializers import CommandeListSerializer, CommandeDetailSerializer, CommandeCreateSerializer, HistoriqueCommandeSerializer, PaiementSenfenicoSerializer, PlainteSerializer, PlainteAdminSerializer
+from .models import (
+    Commande, HistoriqueCommande, StatutCommande, PaiementSenfenico, Plainte, QRCodeCommande,
+    Remboursement, NoteVendeur, NoteLivreur, WalletVendeur, TransactionWallet,
+)
+from .serializers import (
+    CommandeListSerializer, CommandeDetailSerializer, CommandeCreateSerializer, HistoriqueCommandeSerializer,
+    PaiementSenfenicoSerializer, PlainteSerializer, PlainteAdminSerializer,
+    RemboursementSerializer, NoteVendeurCreateSerializer, NoteLivreurCreateSerializer,
+    WalletVendeurSerializer, TransactionWalletSerializer,
+)
 from .services import creer_charge, soumettre_otp as senfenico_soumettre_otp, verifier_webhook_hash
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
 import logging
@@ -55,16 +63,42 @@ class CommandeViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'est_etudiant') and user.est_etudiant:
             return queryset.filter(etudiant=user)
 
+        if hasattr(user, 'est_vendeur') and user.est_vendeur:
+            profil = getattr(user, 'profil_vendeur', None)
+            if not profil:
+                return queryset.none()
+            # Ancien mode (compat) : commandes de son secteur non rattachées à un vendeur
+            legacy = Q(vendeur__isnull=True, secteur=profil.emplacement_id) if profil.emplacement_id else Q(pk__in=[])
+            return queryset.filter(Q(vendeur=profil) | legacy)
+
         if hasattr(user, 'est_livreur') and user.est_livreur:
-            return queryset.filter(
-                Q(salle__livreur_1=user) | Q(salle__livreur_2=user),
-                statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE'],
+            # Ancien mode (salle) conservé pour compat des commandes non rattachées à un vendeur
+            legacy = (
+                Q(vendeur__isnull=True)
+                & (Q(salle__livreur_1=user) | Q(salle__livreur_2=user))
+                & Q(statut__in=['VALIDEE', 'PRETE', 'DISTRIBUEE'])
             )
+            # Missions déjà acceptées par ce livreur (historique / suivi)
+            mine = Q(livreur_assigne=user)
+
+            profil = getattr(user, 'profil_livreur', None)
+            if not profil or not profil.en_service:
+                # Hors service : uniquement ses propres missions en cours + historique legacy
+                return queryset.filter(legacy | mine)
+
+            # Pool flexible (§3.4/§7) : commandes PRETE non encore acceptées,
+            # limitées à ses boutiques attribuées s'il en a (sinon tout le pool = volant).
+            pool = Q(statut='PRETE', livreur_assigne__isnull=True)
+            boutiques = profil.boutiques_attribuees.all()
+            if boutiques.exists():
+                pool &= Q(vendeur__in=boutiques)
+
+            return queryset.filter(pool | legacy | mine).distinct()
 
         return queryset.none()
 
     def get_permissions(self):
-        if self.action in ['valider', 'rejeter', 'marquer_prete']:
+        if self.action in ['valider', 'rejeter']:
             self.permission_classes = [EstChefSecteurOuAdmin]
         elif self.action in ['destroy']:
             self.permission_classes = [EstAdmin]
@@ -97,27 +131,114 @@ class CommandeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='marquer-prete')
     def marquer_prete(self, request, pk=None):
         commande = self.get_object()
-        if commande.statut != StatutCommande.VALIDEE:
-            return Response({'error': 'Seules les commandes VALIDEE peuvent être marquées prêtes'},
+        if commande.statut != StatutCommande.EN_PREPARATION:
+            return Response({'error': 'Seules les commandes EN_PREPARATION peuvent être marquées prêtes'},
                             status=status.HTTP_400_BAD_REQUEST)
         commande.marquer_prete(request.user)
         return Response({'message': 'Commande prête', 'statut': commande.statut})
 
+    # ── Vendeur : accepter la commande (§4.5 : EN_ATTENTE/VALIDEE → ACCEPTEE) ──
+    @action(detail=True, methods=['post'], url_path='accepter-vendeur')
+    def accepter_vendeur(self, request, pk=None):
+        """
+        Le vendeur confirme la commande — passe en ACCEPTEE et génère le
+        code de retrait court (§6.1).
+        """
+        commande = self.get_object()
+        user = request.user
+        if commande.vendeur_id and (not hasattr(user, 'profil_vendeur') or commande.vendeur_id != user.profil_vendeur.id):
+            return Response({'error': 'Cette commande ne concerne pas votre boutique'}, status=status.HTTP_403_FORBIDDEN)
+        if commande.statut not in (StatutCommande.EN_ATTENTE, StatutCommande.VALIDEE):
+            return Response({'error': 'Cette commande ne peut pas être acceptée dans son statut actuel'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        commande.accepter_vendeur(user)
+        return Response({
+            'message': 'Commande acceptée', 'statut': commande.statut,
+            'code_retrait': commande.code_retrait,
+        })
+
+    # ── Vendeur : démarrer la préparation (§4.5 : ACCEPTEE → EN_PREPARATION) ──
+    @action(detail=True, methods=['post'], url_path='en-preparation')
+    def en_preparation(self, request, pk=None):
+        commande = self.get_object()
+        if commande.statut != StatutCommande.ACCEPTEE:
+            return Response({'error': 'Seules les commandes ACCEPTEE peuvent démarrer en préparation'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        commande.demarrer_preparation(request.user)
+        return Response({'message': 'Préparation démarrée', 'statut': commande.statut})
+
+    # ── Livreur : accepter la mission (pool flexible) ───────────────────
+    @action(detail=True, methods=['post'], url_path='accepter-mission')
+    def accepter_mission(self, request, pk=None):
+        """
+        Le livreur accepte la mission — premier arrivé, premier servi (§3.4).
+        La commande disparaît immédiatement de la liste des autres livreurs.
+        """
+        user = request.user
+        if not (hasattr(user, 'est_livreur') and user.est_livreur):
+            return Response({'error': 'Réservé aux livreurs'}, status=status.HTTP_403_FORBIDDEN)
+
+        with transaction.atomic():
+            commande = Commande.objects.select_for_update().get(pk=pk)
+            if commande.statut != StatutCommande.PRETE:
+                return Response({'error': "Cette commande n'est plus disponible"}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                commande.accepter_mission_livreur(user)
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_409_CONFLICT)
+
+        return Response({
+            'message': 'Mission acceptée', 'statut': commande.statut,
+            'code_retrait': commande.code_retrait,
+        })
+
     @action(detail=True, methods=['post'], url_path='distribuer')
     def distribuer(self, request, pk=None):
         commande = self.get_object()
-        if commande.statut != StatutCommande.PRETE:
-            return Response({'error': 'Seules les commandes PRETE peuvent être distribuées'},
+        # Nouveau flux : la mission doit avoir été acceptée (EN_LIVRAISON).
+        # Ancien flux (commandes sans vendeur/mission, compat) : PRETE direct.
+        statuts_valides = (StatutCommande.EN_LIVRAISON,) if commande.vendeur_id else (StatutCommande.PRETE, StatutCommande.EN_LIVRAISON)
+        if commande.statut not in statuts_valides:
+            return Response({'error': "Cette commande n'est pas prête à être distribuée"},
                             status=status.HTTP_400_BAD_REQUEST)
         commande.distribuer(request.user)
         return Response({'message': 'Commande distribuée', 'statut': commande.statut})
 
     @action(detail=True, methods=['post'], url_path='annuler')
     def annuler(self, request, pk=None):
+        """
+        Annulation client (avant EN_PREPARATION uniquement) ou admin (force=True
+        pour un cas exceptionnel après le début de la préparation) — §5.2/§8.
+        """
         commande = self.get_object()
+        user = request.user
+        is_admin = hasattr(user, 'est_admin') and user.est_admin
+
+        if commande.etudiant != user and not is_admin:
+            return Response({'error': 'Interdit'}, status=status.HTTP_403_FORBIDDEN)
+
         motif = request.data.get('motif', 'Annulation')
-        commande.annuler(request.user, motif)
+        force = bool(request.data.get('force')) and is_admin
+        try:
+            commande.annuler(user, motif, force=force)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'message': 'Commande annulée', 'statut': commande.statut})
+
+    # ── Notation (§10) ──────────────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='noter-vendeur')
+    def noter_vendeur(self, request):
+        serializer = NoteVendeurCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='noter-livreur')
+    def noter_livreur(self, request):
+        serializer = NoteLivreurCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'], url_path='historique')
     def historique(self, request, pk=None):
@@ -255,9 +376,12 @@ class CommandeViewSet(viewsets.ModelViewSet):
         if commande.etudiant != request.user:
             return Response({'error': 'Interdit'}, status=status.HTTP_403_FORBIDDEN)
 
-        if commande.statut not in [StatutCommande.VALIDEE, StatutCommande.PRETE]:
+        if commande.statut not in [
+            StatutCommande.VALIDEE, StatutCommande.ACCEPTEE,
+            StatutCommande.EN_PREPARATION, StatutCommande.PRETE, StatutCommande.EN_LIVRAISON,
+        ]:
             return Response(
-                {'error': 'QR code disponible uniquement pour les commandes validées ou prêtes'},
+                {'error': 'QR code disponible uniquement pour les commandes validées, en préparation ou en livraison'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -317,16 +441,26 @@ class CommandeViewSet(viewsets.ModelViewSet):
 
             commande = qr.commande
 
-            salle = commande.salle
-            if salle.livreur_1 != user and salle.livreur_2 != user:
-                return Response(
-                    {'error': "Vous n'êtes pas assigné à la salle de cette commande"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+            # Nouveau flux : la mission doit avoir été acceptée par ce livreur.
+            # Ancien flux (compat, commandes sans vendeur) : assignation par salle.
+            if commande.livreur_assigne_id:
+                if commande.livreur_assigne_id != user.id:
+                    return Response(
+                        {'error': "Cette mission a été acceptée par un autre livreur"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+            else:
+                salle = commande.salle
+                if salle.livreur_1 != user and salle.livreur_2 != user:
+                    return Response(
+                        {'error': "Vous n'êtes pas assigné à la salle de cette commande"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
 
-            if commande.statut != StatutCommande.PRETE:
+            statuts_valides = (StatutCommande.EN_LIVRAISON,) if commande.vendeur_id else (StatutCommande.PRETE, StatutCommande.EN_LIVRAISON)
+            if commande.statut not in statuts_valides:
                 return Response(
-                    {'error': f"La commande n'est pas encore prête (statut : {commande.get_statut_display()})"},
+                    {'error': f"La commande n'est pas encore prête à être remise (statut : {commande.get_statut_display()})"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -390,6 +524,32 @@ class CommandeViewSet(viewsets.ModelViewSet):
             'en_attente': en_attente_count,
             'par_methode': stats_methodes,
         })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def wallet_view(request):
+    """GET /api/wallet/ — solde en attente/disponible du vendeur connecté (§5.1)."""
+    user = request.user
+    if not (hasattr(user, 'est_vendeur') and user.est_vendeur):
+        return Response({'error': 'Réservé aux vendeurs'}, status=status.HTTP_403_FORBIDDEN)
+    wallet, _ = WalletVendeur.objects.get_or_create(vendeur=user)
+    return Response(WalletVendeurSerializer(wallet).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def wallet_transactions_view(request):
+    """GET /api/wallet/transactions/ — historique des mouvements du vendeur connecté."""
+    user = request.user
+    if not (hasattr(user, 'est_vendeur') and user.est_vendeur):
+        return Response({'error': 'Réservé aux vendeurs'}, status=status.HTTP_403_FORBIDDEN)
+    wallet, _ = WalletVendeur.objects.get_or_create(vendeur=user)
+    transactions = wallet.transactions.select_related('commande').all()[:200]
+    return Response({
+        'results': TransactionWalletSerializer(transactions, many=True).data,
+        'count': wallet.transactions.count(),
+    })
 
 
 @api_view(['GET'])
@@ -465,9 +625,10 @@ def senfenico_webhook(request):
 
 class PlainteViewSet(viewsets.ModelViewSet):
     """
-    API pour les plaintes étudiants.
-    - Étudiant : crée et voit ses propres plaintes
-    - Admin/Chef : voit toutes les plaintes, peut modifier statut et réponse
+    API pour les signalements — accessibles au client, au vendeur et au
+    livreur (§9.1), pas seulement à l'étudiant.
+    - Auteur : crée et voit ses propres signalements
+    - Admin/Chef : voit tous les signalements, peut modifier statut et réponse
     """
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
@@ -477,8 +638,10 @@ class PlainteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.est_admin or user.est_chef_secteur:
-            return Plainte.objects.select_related('etudiant', 'commande').all()
-        return Plainte.objects.select_related('etudiant', 'commande').filter(etudiant=user)
+            return Plainte.objects.select_related('etudiant', 'auteur', 'commande').all()
+        return Plainte.objects.select_related('etudiant', 'auteur', 'commande').filter(
+            Q(etudiant=user) | Q(auteur=user)
+        )
 
     def get_serializer_class(self):
         user = self.request.user
@@ -487,4 +650,29 @@ class PlainteViewSet(viewsets.ModelViewSet):
         return PlainteSerializer
 
     def perform_create(self, serializer):
-        serializer.save(etudiant=self.request.user)
+        # `etudiant` reste requis en base (compat) ; `auteur` porte l'identité
+        # réelle du signalant, qui peut être un vendeur ou un livreur (§9.1).
+        serializer.save(etudiant=self.request.user, auteur=self.request.user)
+
+
+# ──────────────────── VIEWSET REMBOURSEMENT ────────────────────
+class RemboursementViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Suivi des remboursements (§5.2). Lecture + action de traitement manuel
+    réservées à l'administration (aucune API de remboursement automatique
+    confirmée côté agrégateur — filet de sécurité manuel, §5.2/§14).
+    """
+    queryset = Remboursement.objects.select_related('commande', 'traite_par').all()
+    serializer_class = RemboursementSerializer
+    permission_classes = [EstAdmin]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['statut', 'automatique']
+    ordering = ['-date_creation']
+
+    @action(detail=True, methods=['post'], url_path='marquer-traite')
+    def marquer_traite(self, request, pk=None):
+        remboursement = self.get_object()
+        if remboursement.statut != 'EN_ATTENTE':
+            return Response({'error': 'Ce remboursement a déjà été traité'}, status=status.HTTP_400_BAD_REQUEST)
+        remboursement.marquer_traite(request.user)
+        return Response(RemboursementSerializer(remboursement).data)

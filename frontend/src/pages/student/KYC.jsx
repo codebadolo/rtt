@@ -46,7 +46,12 @@ export default function StudentKYC() {
   const statut = myKyc?.statut_actuel?.code ?? null
 
   const onSubmit = (data) => {
-    submitMutation.mutate({ numero_carte: data.numero_carte })
+    const form = new FormData()
+    form.append('numero_carte', data.numero_carte)
+    if (data.image_carte_recto?.[0]) form.append('image_carte_recto', data.image_carte_recto[0])
+    if (data.image_carte_verso?.[0]) form.append('image_carte_verso', data.image_carte_verso[0])
+    if (data.selfie_etudiant?.[0]) form.append('selfie_etudiant', data.selfie_etudiant[0])
+    submitMutation.mutate(form)
   }
 
   if (isLoading) {
@@ -144,8 +149,23 @@ export default function StudentKYC() {
                 )}
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="label">Carte — recto</label>
+                  <input type="file" accept="image/*" className="input text-xs" {...register('image_carte_recto')} />
+                </div>
+                <div>
+                  <label className="label">Carte — verso</label>
+                  <input type="file" accept="image/*" className="input text-xs" {...register('image_carte_verso')} />
+                </div>
+                <div>
+                  <label className="label">Selfie</label>
+                  <input type="file" accept="image/*" capture="user" className="input text-xs" {...register('selfie_etudiant')} />
+                </div>
+              </div>
+
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
-                Entrez le numéro figurant sur votre carte étudiant. Une fois soumis, votre dossier sera traité par l'administration.
+                Entrez le numéro figurant sur votre carte étudiant et joignez une photo du recto, du verso et un selfie. Une fois soumis, votre dossier sera traité par l'administration.
               </div>
 
               <button

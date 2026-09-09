@@ -4,8 +4,10 @@ export const plaintesApi = {
   list: (params) =>
     client.get('/plaintes/', { params }).then((r) => r.data),
 
-  create: (data) =>
-    client.post('/plaintes/', data).then((r) => r.data),
+  create: (data) => {
+    const isFormData = data instanceof FormData
+    return client.post('/plaintes/', data, isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}).then((r) => r.data)
+  },
 
   get: (id) =>
     client.get(`/plaintes/${id}/`).then((r) => r.data),

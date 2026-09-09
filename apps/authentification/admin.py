@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
-from .models import Utilisateur, OTPVerification, SanctionUtilisateur
+from .models import Utilisateur, OTPVerification, SanctionUtilisateur, DossierKYC
 
 
 @admin.register(Utilisateur)
@@ -99,3 +99,19 @@ class SanctionUtilisateurAdmin(admin.ModelAdmin):
             sanction.lever()
         self.message_user(request, f'{queryset.count()} sanction(s) levée(s).')
     lever_sanctions.short_description = 'Lever les sanctions sélectionnées'
+
+
+@admin.register(DossierKYC)
+class DossierKYCAdmin(admin.ModelAdmin):
+    list_display = ['utilisateur', 'numero_carte', 'statut', 'verifie_par', 'date_creation']
+    list_filter = ['statut']
+    search_fields = ['utilisateur__email', 'utilisateur__nom', 'numero_carte']
+    ordering = ['-date_creation']
+    readonly_fields = ['date_creation', 'date_verification', 'verifie_par']
+    actions = ['valider_dossiers']
+
+    def valider_dossiers(self, request, queryset):
+        for dossier in queryset.filter(statut='EN_ATTENTE'):
+            dossier.valider(request.user)
+        self.message_user(request, f'{queryset.count()} dossier(s) validé(s).')
+    valider_dossiers.short_description = 'Valider les dossiers sélectionnés'

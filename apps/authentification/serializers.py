@@ -2,7 +2,7 @@ import re
 import requests as http_requests
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Utilisateur
+from .models import Utilisateur, OTPVerification, DossierKYC
 import logging
 
 logger = logging.getLogger(__name__)
@@ -321,3 +321,68 @@ class ReinitialisationMotDePasseSerializer(serializers.Serializer):
 
         except Utilisateur.DoesNotExist:
             raise serializers.ValidationError({"detail": "Lien invalide. Veuillez en demander un nouveau."})
+
+
+# ──────────────────── SERIALIZER OTP INSCRIPTION ────────────────────
+class OTPEnvoyerSerializer(serializers.Serializer):
+    """Envoi du code OTP (WhatsApp puis repli SMS) à l'inscription (§3.1)."""
+    telephone = serializers.CharField(required=True, max_length=20)
+
+    def save(self):
+        from .otp_sender import envoyer_code_otp, EnvoiOTPNonConfigure
+
+        telephone = self.validated_data['telephone']
+        otp = OTPVerification.generer(telephone)
+        try:
+            resultat = envoyer_code_otp(telephone, otp.code)
+        except EnvoiOTPNonConfigure as e:
+            raise serializers.ValidationError({'detail': str(e)})
+        return resultat
+
+
+class OTPVerifierSerializer(serializers.Serializer):
+    telephone = serializers.CharField(required=True, max_length=20)
+    code = serializers.CharField(required=True, max_length=6)
+
+    def validate(self, data):
+        if not OTPVerification.verifier(data['telephone'], data['code']):
+            raise serializers.ValidationError({'detail': 'Code invalide ou expiré.'})
+        return data
+
+
+# ──────────────────── SERIALIZER KYC (carte étudiant) ────────────────────
+class DossierKYCSerializer(serializers.ModelSerializer):
+    utilisateur_nom = serializers.SerializerMethodField()
+    utilisateur_email = serializers.CharField(source='utilisateur.email', read_only=True)
+    verifie_par_nom = serializers.SerializerMethodField()
+    statut_actuel = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DossierKYC
+        fields = [
+            'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email',
+            'numero_carte', 'image_carte_recto', 'image_carte_verso', 'selfie_etudiant',
+            'statut', 'statut_actuel', 'motif_rejet', 'verifie_par_nom',
+            'date_creation', 'date_verification',
+        ]
+        read_only_fields = ['id', 'utilisateur', 'statut', 'motif_rejet', 'date_creation', 'date_verification']
+
+    def get_utilisateur_nom(self, obj):
+        return obj.utilisateur.get_full_name()
+
+    def get_verifie_par_nom(self, obj):
+        return obj.verifie_par.get_full_name() if obj.verifie_par else None
+
+    def get_statut_actuel(self, obj):
+        return {'code': obj.statut}
+
+    def create(self, validated_data):
+        utilisateur = self.context['request'].user
+        dossier, created = DossierKYC.objects.get_or_create(
+            utilisateur=utilisateur, defaults=validated_data,
+        )
+        if not created:
+            if dossier.statut != 'REJETE':
+                raise serializers.ValidationError({'detail': 'Un dossier est déjà en cours de traitement.'})
+            dossier.resoumettre(**validated_data)
+        return dossier

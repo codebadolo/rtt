@@ -4,8 +4,10 @@ export const kycApi = {
   list: (params) =>
     client.get('/kyc/', { params }).then((r) => r.data),
 
-  submit: (data) =>
-    client.post('/kyc/', data).then((r) => r.data),
+  submit: (data) => {
+    const isFormData = data instanceof FormData
+    return client.post('/kyc/', data, isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}).then((r) => r.data)
+  },
 
   get: (id) =>
     client.get(`/kyc/${id}/`).then((r) => r.data),

@@ -1,9 +1,9 @@
-import { ArrowLeft, ArrowRight, Building2, CheckCircle, Eye, EyeOff, Lock, Mail, MapPin, Phone, ShoppingBag, Store, Truck, User, Users } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ArrowLeft, ArrowRight, Building2, CheckCircle, Eye, EyeOff, Lock, Mail, MapPin, MessageCircle, Phone, ShieldCheck, ShoppingBag, Store, Truck, User, Users } from 'lucide-react'
+import { forwardRef, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { Link, useNavigate } from 'react-router-dom'
-import { authApi, universitesApi } from '../../api/auth'
+import { authApi, otpApi, universitesApi } from '../../api/auth'
 import { setStoredToken } from '../../api/client'
 import useAuthStore from '../../stores/authStore'
 
@@ -55,20 +55,56 @@ const ROLE_REDIRECTS = {
 const NIVEAUX = ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Doctorat', 'BTS', 'DUT', 'Autre']
 
 export default function Register() {
-  const [step, setStep] = useState(1) // 1=rôle, 2=infos communes, 3=infos spécifiques
+  const [step, setStep] = useState(1) // 1=rôle, 2=infos communes, 3=vérification OTP, 4=infos spécifiques
   const [selectedRole, setSelectedRole] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
   const [universites, setUniversites] = useState([])
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
+  const [otpVerified, setOtpVerified] = useState(false)
+  const [otpDebugCode, setOtpDebugCode] = useState(null)
   const navigate = useNavigate()
   const { setUser } = useAuthStore()
 
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm()
+  const { register, handleSubmit, watch, getValues, formState: { errors, isSubmitting } } = useForm()
 
   useEffect(() => {
     universitesApi.list()
       .then((data) => setUniversites(Array.isArray(data) ? data : data.results ?? []))
       .catch(() => {})
   }, [])
+
+  const envoyerOtp = async () => {
+    const telephone = getValues('telephone')
+    if (!telephone) return
+    setOtpSending(true)
+    setOtpDebugCode(null)
+    try {
+      const res = await otpApi.envoyer(telephone)
+      toast.success('Code envoyé par WhatsApp (ou SMS si indisponible)')
+      // En dev, le backend renvoie le code car aucun provider WhatsApp/SMS n'est encore branché
+      if (res?.debug_code) setOtpDebugCode(res.debug_code)
+    } catch (err) {
+      toast.error(err.response?.data?.detail ?? "Erreur lors de l'envoi du code")
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  const verifierOtp = async () => {
+    const telephone = getValues('telephone')
+    setOtpVerifying(true)
+    try {
+      await otpApi.verifier(telephone, otpCode)
+      setOtpVerified(true)
+      toast.success('Numéro vérifié !')
+    } catch (err) {
+      toast.error(err.response?.data?.detail ?? 'Code invalide ou expiré')
+    } finally {
+      setOtpVerifying(false)
+    }
+  }
 
   const onSubmit = async (data) => {
     try {
@@ -120,7 +156,7 @@ export default function Register() {
 
           {/* Stepper */}
           <div className="flex items-center justify-center gap-2 mb-6">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
                   s < step ? 'bg-orange-500 text-white' :
@@ -129,7 +165,7 @@ export default function Register() {
                 }`}>
                   {s < step ? <CheckCircle className="w-4 h-4" /> : s}
                 </div>
-                {s < 3 && <div className={`w-12 h-0.5 transition-all ${s < step ? 'bg-orange-500' : 'bg-gray-200'}`} />}
+                {s < 4 && <div className={`w-12 h-0.5 transition-all ${s < step ? 'bg-orange-500' : 'bg-gray-200'}`} />}
               </div>
             ))}
           </div>
@@ -181,7 +217,7 @@ export default function Register() {
 
             {/* ── ÉTAPE 2 : Infos communes ── */}
             {step === 2 && (
-              <form onSubmit={handleSubmit(() => setStep(3))}>
+              <form onSubmit={handleSubmit(() => { setStep(3); envoyerOtp() })}>
                 <div className="flex items-center gap-3 mb-5">
                   <button type="button" onClick={() => setStep(1)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
@@ -262,11 +298,85 @@ export default function Register() {
               </form>
             )}
 
-            {/* ── ÉTAPE 3 : Infos spécifiques au rôle ── */}
+            {/* ── ÉTAPE 3 : Vérification OTP (§3.1 écran 5) ── */}
             {step === 3 && (
-              <form onSubmit={handleSubmit(onSubmit)}>
+              <div>
                 <div className="flex items-center gap-3 mb-5">
                   <button type="button" onClick={() => setStep(2)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div>
+                    <h1 className="text-xl font-extrabold text-gray-900">Vérification du numéro</h1>
+                    <p className="text-gray-400 text-xs mt-0.5">Code envoyé par WhatsApp (ou SMS si indisponible)</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl mb-5">
+                  <MessageCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <p className="text-sm text-green-700">
+                    Un code à 6 chiffres a été envoyé au <span className="font-semibold">{watch('telephone')}</span>.
+                  </p>
+                </div>
+
+                {otpDebugCode && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 mb-4">
+                    Mode développement — aucun fournisseur WhatsApp/SMS configuré. Code : <span className="font-mono font-bold">{otpDebugCode}</span>
+                  </div>
+                )}
+
+                {otpVerified ? (
+                  <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-2xl mb-5">
+                    <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                    <p className="text-sm text-blue-700 font-medium">Numéro vérifié !</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 mb-5">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Code à 6 chiffres"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full text-center text-xl font-mono tracking-widest px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 outline-none"
+                    />
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={verifierOtp}
+                        disabled={otpCode.length < 4 || otpVerifying}
+                        className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl transition-colors"
+                      >
+                        {otpVerifying ? 'Vérification…' : 'Vérifier'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={envoyerOtp}
+                        disabled={otpSending}
+                        className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                      >
+                        {otpSending ? 'Envoi…' : 'Renvoyer'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => otpVerified && setStep(4)}
+                  disabled={!otpVerified}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white font-bold py-3 rounded-2xl transition-colors flex items-center justify-center gap-2"
+                >
+                  Continuer <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* ── ÉTAPE 4 : Infos spécifiques au rôle ── */}
+            {step === 4 && (
+              <form onSubmit={handleSubmit(onSubmit)}>
+                <div className="flex items-center gap-3 mb-5">
+                  <button type="button" onClick={() => setStep(3)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div>
@@ -364,11 +474,12 @@ function Field({ label, error, children }) {
   )
 }
 
-function InputIcon({ icon: Icon, error, className = '', ...props }) {
+const InputIcon = forwardRef(function InputIcon({ icon: Icon, error, className = '', ...props }, ref) {
   return (
     <div className="relative">
       <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
       <input
+        ref={ref}
         className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none transition-colors ${
           error ? 'border-red-400' : 'border-gray-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
         } ${className}`}
@@ -376,4 +487,4 @@ function InputIcon({ icon: Icon, error, className = '', ...props }) {
       />
     </div>
   )
-}
+})

@@ -207,12 +207,23 @@ class Produit(models.Model):
     date_creation = models.DateTimeField('Date création', auto_now_add=True)
     date_modification = models.DateTimeField('Dernière modification', auto_now=True)
     cree_par = models.ForeignKey(
-        'authentification.Utilisateur', 
-        on_delete=models.SET_NULL, 
-        null=True, 
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
         related_name='produits_crees'
     )
-    
+
+    # Rattachement à la boutique du vendeur (marketplace multi-vendeurs).
+    # Nullable pour compat avec le catalogue existant non rattaché.
+    vendeur = models.ForeignKey(
+        'ProfilVendeur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='produits',
+        verbose_name='Vendeur',
+    )
+
     class Meta:
         verbose_name = 'Produit'
         verbose_name_plural = 'Produits'
@@ -650,6 +661,7 @@ class ProfilVendeur(models.Model):
         self.date_validation = timezone.now()
         self.motif_rejet = None
         self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'VALIDATION_VENDEUR', self, f'Boutique "{self.nom_boutique}" validée')
 
     def rejeter(self, admin, motif):
         self.est_valide = False
@@ -657,6 +669,20 @@ class ProfilVendeur(models.Model):
         self.date_validation = timezone.now()
         self.motif_rejet = motif
         self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'REJET_VENDEUR', self, f'Boutique "{self.nom_boutique}" rejetée : {motif}')
+
+    SEUIL_ALERTE_NOTE = 3.0
+
+    @property
+    def note_moyenne(self):
+        """Note moyenne publique du vendeur (§10)."""
+        from django.db.models import Avg
+        return self.notes.aggregate(m=Avg('note'))['m']
+
+    @property
+    def alerte_note_basse(self):
+        moyenne = self.note_moyenne
+        return moyenne is not None and moyenne < self.SEUIL_ALERTE_NOTE
 
 
 # ─────────────────── Profil Livreur ───────────────────
@@ -693,10 +719,26 @@ class ProfilLivreur(models.Model):
         verbose_name='Zones de livraison',
     )
 
+    # Boutique(s) attribuée(s) manuellement par l'admin (§7 du cahier des charges).
+    # Vide = livreur "volant", réaffecté manuellement en cas d'absence.
+    boutiques_attribuees = models.ManyToManyField(
+        'ProfilVendeur',
+        blank=True,
+        related_name='livreurs_attribues',
+        verbose_name='Boutiques attribuées',
+    )
+
     capacite_max_livraisons = models.PositiveIntegerField(
         'Capacité max livraisons simultanées',
         default=5,
     )
+
+    # Disponibilité déclarée par le livreur (interrupteur En service/Hors service).
+    en_service = models.BooleanField('En service', default=False, db_index=True)
+
+    # Récidive : nombre de fois qu'une mission acceptée est repassée dans le pool
+    # faute de mise à jour de statut sous 20-30 min (§14.6).
+    compteur_abandon = models.PositiveIntegerField('Missions abandonnées', default=0)
 
     # Validation
     est_valide = models.BooleanField('Compte validé', default=False)
@@ -727,6 +769,7 @@ class ProfilLivreur(models.Model):
         self.date_validation = timezone.now()
         self.motif_rejet = None
         self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'VALIDATION_LIVREUR', self, f'Livreur {self.utilisateur.get_full_name()} validé')
 
     def rejeter(self, admin, motif):
         self.est_valide = False
@@ -734,3 +777,106 @@ class ProfilLivreur(models.Model):
         self.date_validation = timezone.now()
         self.motif_rejet = motif
         self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+        JournalAudit.enregistrer(admin, 'REJET_LIVREUR', self, f'Livreur {self.utilisateur.get_full_name()} rejeté : {motif}')
+
+    def basculer_service(self):
+        """Interrupteur En service / Hors service (§3.4)."""
+        self.en_service = not self.en_service
+        self.save(update_fields=['en_service'])
+        return self.en_service
+
+    @property
+    def est_volant(self):
+        """Livreur sans boutique fixe attribuée — réaffectable en cas d'absence (§7)."""
+        return not self.boutiques_attribuees.exists()
+
+    SEUIL_ALERTE_NOTE = 3.0
+
+    @property
+    def note_moyenne(self):
+        """Note moyenne interne du livreur — jamais publique (§10)."""
+        from django.db.models import Avg
+        return self.utilisateur.notes_recues.aggregate(m=Avg('note'))['m']
+
+    @property
+    def alerte_note_basse(self):
+        moyenne = self.note_moyenne
+        return moyenne is not None and moyenne < self.SEUIL_ALERTE_NOTE
+
+
+# ─────────────────── Créneaux de livraison ───────────────────
+class CreneauLivraison(models.Model):
+    """
+    Créneau fixe de retrait/livraison (ex: 10h00, 12h30, 15h00, 18h00).
+    Le client choisit un créneau parmi cette liste à la commande (§4.2),
+    ce qui permet aussi le regroupement des commandes par créneau
+    côté vendeur (§4.4).
+    """
+
+    label = models.CharField('Libellé', max_length=50, help_text="Ex: 10h00, 12h30")
+    heure = models.TimeField('Heure du créneau')
+    universite = models.ForeignKey(
+        Universite,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='creneaux_livraison',
+        verbose_name='Université (vide = global)',
+    )
+    ordre = models.PositiveSmallIntegerField('Ordre d\'affichage', default=0)
+    est_actif = models.BooleanField('Créneau actif', default=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Créneau de livraison'
+        verbose_name_plural = 'Créneaux de livraison'
+        ordering = ['ordre', 'heure']
+
+    def __str__(self):
+        return self.label
+
+
+# ─────────────────── Journal d'audit administrateur ───────────────────
+class JournalAudit(models.Model):
+    """
+    Trace chaque action administrative (validation, sanction, activation
+    de statut caché...) avec son auteur et sa date (§3.5 / §12).
+    """
+
+    auteur = models.ForeignKey(
+        'authentification.Utilisateur',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='actions_audit',
+        verbose_name='Auteur',
+    )
+    action = models.CharField('Action', max_length=100, db_index=True)
+    cible_type = models.CharField('Type de cible', max_length=100, blank=True, default='')
+    cible_id = models.PositiveIntegerField('ID de la cible', null=True, blank=True)
+    details = models.TextField('Détails', blank=True, default='')
+    date_creation = models.DateTimeField('Date', auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Entrée du journal d'audit"
+        verbose_name_plural = "Journal d'audit"
+        ordering = ['-date_creation']
+        indexes = [
+            models.Index(fields=['action', 'date_creation']),
+        ]
+
+    def __str__(self):
+        auteur = self.auteur.get_full_name() if self.auteur else 'Système'
+        return f"{self.action} — {auteur} ({self.date_creation.strftime('%d/%m/%Y %H:%M')})"
+
+    @classmethod
+    def enregistrer(cls, auteur, action, cible=None, details=''):
+        """Raccourci pour créer une entrée d'audit depuis n'importe quel modèle."""
+        cible_type = cible.__class__.__name__ if cible is not None else ''
+        cible_id = getattr(cible, 'pk', None)
+        return cls.objects.create(
+            auteur=auteur,
+            action=action,
+            cible_type=cible_type,
+            cible_id=cible_id,
+            details=details,
+        )
