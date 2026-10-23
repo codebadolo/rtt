@@ -11,9 +11,9 @@ import DashboardLayout from '../../layouts/DashboardLayout'
 
 const STATUTS = [
   { value: '', label: 'Toutes' },
-  { value: 'BROUILLON', label: 'Brouillon' },
+  { value: 'BROUILLON', label: 'En attente de paiement' },
   { value: 'EN_ATTENTE', label: 'En attente' },
-  { value: 'VALIDEE', label: 'Validée' },
+  { value: 'VALIDEE', label: 'Confirmée (payée)' },
   { value: 'REJETEE', label: 'Rejetée' },
   { value: 'PRETE', label: 'Prête' },
   { value: 'DISTRIBUEE', label: 'Distribuée' },
@@ -65,7 +65,7 @@ export default function StudentOrders() {
           <div className="card text-center py-16">
             <ClipboardList className="h-14 w-14 text-gray-200 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">Aucune commande trouvée</p>
-            <Link to="/etudiant/produits" className="btn-primary mt-4 inline-flex">
+            <Link to="/campus" className="btn-primary mt-4 inline-flex">
               Passer une commande
             </Link>
           </div>

@@ -9,7 +9,9 @@ import json
 
 # ─────────────────── Statuts de Commande ───────────────────
 class StatutCommande(models.TextChoices):
-    BROUILLON = 'BROUILLON', 'Brouillon'
+    # Commande en préparation du paiement : visible du seul étudiant, elle
+    # n'existe pour le vendeur qu'une fois le paiement confirmé (dossier V1 §4).
+    BROUILLON = 'BROUILLON', 'En attente de paiement'
     EN_ATTENTE = 'EN_ATTENTE', 'En attente'
     ACCEPTEE = 'ACCEPTEE', 'Acceptée par le vendeur'
     EN_PREPARATION = 'EN_PREPARATION', 'En préparation'
@@ -17,7 +19,7 @@ class StatutCommande(models.TextChoices):
     EN_LIVRAISON = 'EN_LIVRAISON', 'En livraison'
     LIVREE = 'LIVREE', 'Livrée'
     # Statuts hérités conservés pour compatibilité production
-    VALIDEE = 'VALIDEE', 'Validée - Paiement reçu'
+    VALIDEE = 'VALIDEE', 'Confirmée - Paiement reçu'
     DISTRIBUEE = 'DISTRIBUEE', 'Distribuée'
     REJETEE = 'REJETEE', 'Rejetée'
     ANNULEE = 'ANNULEE', 'Annulée'
@@ -306,6 +308,7 @@ class Commande(models.Model):
         """
         from apps.administration.models import Produit
 
+        ancien_statut = self.statut
         with transaction.atomic():
             lignes = list(self.lignes.select_related('produit'))
             for ligne in lignes:
@@ -327,7 +330,7 @@ class Commande(models.Model):
 
             HistoriqueCommande.objects.create(
                 commande=self,
-                ancien_statut=StatutCommande.EN_ATTENTE,
+                ancien_statut=ancien_statut,
                 nouveau_statut=StatutCommande.VALIDEE,
                 modifie_par=validateurs,
                 commentaire="Paiement validé"
@@ -336,8 +339,11 @@ class Commande(models.Model):
             QRCodeCommande.generer_pour_commande(self)
             WalletVendeur.crediter_en_attente(self)
 
-        from apps.commandes.consumers import envoyer_mise_a_jour_commande
+        from apps.commandes.consumers import envoyer_mise_a_jour_commande, notifier_nouvelle_commande
         envoyer_mise_a_jour_commande(self)
+        # La commande n'est présentée au vendeur / chef qu'une fois payée.
+        if ancien_statut == StatutCommande.BROUILLON:
+            notifier_nouvelle_commande(self)
     
     def rejeter(self, validateurs, motif):
         """
@@ -467,6 +473,15 @@ class Commande(models.Model):
         StatutCommande.EN_LIVRAISON, StatutCommande.LIVREE,
     )
 
+    # Statuts antérieurs à la confirmation du paiement
+    STATUTS_NON_PAYES = (StatutCommande.BROUILLON, StatutCommande.EN_ATTENTE)
+
+    @property
+    def paiement_confirme(self):
+        return self.statut not in self.STATUTS_NON_PAYES + (StatutCommande.REJETEE,) and bool(
+            self.reference_paiement or self.date_validation
+        )
+
     def annuler(self, utilisateur, motif, force=False):
         """
         Annule la commande.
@@ -500,8 +515,9 @@ class Commande(models.Model):
             commentaire=f"Annulé: {motif}"
         )
 
-        # Restaurer le stock si déjà réservé (commande validée avant annulation)
-        if ancien_statut != StatutCommande.EN_ATTENTE:
+        # Commande jamais payée : ni stock réservé, ni remboursement à prévoir
+        if ancien_statut not in self.STATUTS_NON_PAYES:
+            # Restaurer le stock réservé à la validation du paiement
             from apps.administration.models import Produit
             for ligne in self.lignes.select_related('produit'):
                 if ligne.produit.stock_limite:
@@ -509,8 +525,8 @@ class Commande(models.Model):
                         quantite_stock=models.F('quantite_stock') + ligne.quantite
                     )
 
-        if not Remboursement.objects.filter(commande=self).exists():
-            Remboursement.declencher(self, motif=motif, automatique=not force)
+            if not Remboursement.objects.filter(commande=self).exists():
+                Remboursement.declencher(self, motif=motif, automatique=not force)
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)

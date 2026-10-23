@@ -46,9 +46,9 @@ class CommandeViewSet(viewsets.ModelViewSet):
         return CommandeListSerializer
 
     def perform_create(self, serializer):
-        commande = serializer.save(etudiant=self.request.user)
-        from apps.commandes.consumers import notifier_nouvelle_commande
-        notifier_nouvelle_commande(commande)
+        # Commande en préparation du paiement : aucune notification au vendeur
+        # ni au chef avant confirmation du paiement (voir Commande.valider).
+        serializer.save(etudiant=self.request.user)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -57,11 +57,14 @@ class CommandeViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'est_admin') and user.est_admin:
             return queryset
 
-        if hasattr(user, 'est_chef_secteur') and user.est_chef_secteur:
-            return queryset.filter(secteur__chefs=user)
-
         if hasattr(user, 'est_etudiant') and user.est_etudiant:
             return queryset.filter(etudiant=user)
+
+        # Une commande non payée n'existe pas pour les opérateurs (dossier V1 §4)
+        queryset = queryset.exclude(statut=StatutCommande.BROUILLON)
+
+        if hasattr(user, 'est_chef_secteur') and user.est_chef_secteur:
+            return queryset.filter(secteur__chefs=user)
 
         if hasattr(user, 'est_vendeur') and user.est_vendeur:
             profil = getattr(user, 'profil_vendeur', None)
@@ -137,7 +140,7 @@ class CommandeViewSet(viewsets.ModelViewSet):
         commande.marquer_prete(request.user)
         return Response({'message': 'Commande prête', 'statut': commande.statut})
 
-    # ── Vendeur : accepter la commande (§4.5 : EN_ATTENTE/VALIDEE → ACCEPTEE) ──
+    # ── Vendeur : accepter la commande payée (VALIDEE → ACCEPTEE) ──
     @action(detail=True, methods=['post'], url_path='accepter-vendeur')
     def accepter_vendeur(self, request, pk=None):
         """
@@ -148,7 +151,8 @@ class CommandeViewSet(viewsets.ModelViewSet):
         user = request.user
         if commande.vendeur_id and (not hasattr(user, 'profil_vendeur') or commande.vendeur_id != user.profil_vendeur.id):
             return Response({'error': 'Cette commande ne concerne pas votre boutique'}, status=status.HTTP_403_FORBIDDEN)
-        if commande.statut not in (StatutCommande.EN_ATTENTE, StatutCommande.VALIDEE):
+        # Seule une commande dont le paiement est confirmé peut être traitée (dossier V1 §4)
+        if commande.statut != StatutCommande.VALIDEE:
             return Response({'error': 'Cette commande ne peut pas être acceptée dans son statut actuel'},
                             status=status.HTTP_400_BAD_REQUEST)
         commande.accepter_vendeur(user)
@@ -251,14 +255,14 @@ class CommandeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='initier-paiement')
     def initier_paiement(self, request, pk=None):
         """
-        Initie une charge Senfenico pour une commande EN_ATTENTE.
+        Initie une charge Senfenico pour une commande en attente de paiement.
         Retourne charge_reference, statut et display_text.
         """
         commande = self.get_object()
 
-        if commande.statut != StatutCommande.EN_ATTENTE:
+        if commande.statut not in Commande.STATUTS_NON_PAYES:
             return Response(
-                {'error': 'Seules les commandes EN_ATTENTE peuvent être payées'},
+                {'error': 'Cette commande n\'est plus en attente de paiement'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -271,36 +275,42 @@ class CommandeViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Éviter les doubles charges
-        if hasattr(commande, 'paiement_senfenico'):
-            p = commande.paiement_senfenico
-            return Response({
-                'charge_reference': p.charge_reference,
-                'statut': p.statut,
-                'display_text': p.display_text,
-            })
+        # Verrou sur la commande : deux demandes simultanées (double clic,
+        # onglet dupliqué…) ne doivent jamais créer deux charges.
+        with transaction.atomic():
+            Commande.objects.select_for_update().filter(pk=commande.pk).first()
 
-        try:
-            data = creer_charge(
-                montant=int(commande.total_ttc),
-                telephone=commande.telephone_paiement,
-                methode_paiement=commande.methode_paiement,
-            )
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error("Senfenico charge error for commande %s: %s", commande.pk, e)
-            return Response(
-                {'error': 'Erreur lors de l\'initiation du paiement. Réessayez.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            # Une charge échouée peut être relancée ; sinon on renvoie la charge existante
+            PaiementSenfenico.objects.filter(commande=commande, statut='failed').delete()
+            p = PaiementSenfenico.objects.filter(commande=commande).first()
+            if p:
+                return Response({
+                    'charge_reference': p.charge_reference,
+                    'statut': p.statut,
+                    'display_text': p.display_text,
+                })
 
-        PaiementSenfenico.objects.create(
-            commande=commande,
-            charge_reference=data['reference'],
-            statut=data['status'],
-            display_text=data.get('display_text', ''),
-        )
+            try:
+                data = creer_charge(
+                    montant=int(commande.total_ttc),
+                    telephone=commande.telephone_paiement,
+                    methode_paiement=commande.methode_paiement,
+                )
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                logger.error("Senfenico charge error for commande %s: %s", commande.pk, e)
+                return Response(
+                    {'error': 'Erreur lors de l\'initiation du paiement. Réessayez.'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            PaiementSenfenico.objects.create(
+                commande=commande,
+                charge_reference=data['reference'],
+                statut=data['status'],
+                display_text=data.get('display_text', ''),
+            )
 
         return Response({
             'charge_reference': data['reference'],
@@ -348,7 +358,7 @@ class CommandeViewSet(viewsets.ModelViewSet):
         paiement.save(update_fields=['statut'])
 
         if charge_statut == 'success':
-            if commande.statut == StatutCommande.EN_ATTENTE:
+            if commande.statut in Commande.STATUTS_NON_PAYES:
                 try:
                     commande.valider(None, reference_paiement=paiement.charge_reference)
                 except Exception as e:
@@ -357,7 +367,7 @@ class CommandeViewSet(viewsets.ModelViewSet):
                         {'error': 'Paiement reçu mais erreur lors de la validation. Contactez le support.'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     )
-            return Response({'message': 'Paiement réussi ! Commande validée.', 'statut': 'success'})
+            return Response({'message': 'Paiement confirmé — commande confirmée.', 'statut': 'success'})
 
         return Response(
             {'error': 'Paiement échoué. Vérifiez votre OTP et réessayez.', 'statut': charge_statut},
@@ -616,7 +626,7 @@ def senfenico_webhook(request):
     paiement.save(update_fields=['statut'])
 
     commande = paiement.commande
-    if charge_statut == 'success' and commande.statut == StatutCommande.EN_ATTENTE:
+    if charge_statut == 'success' and commande.statut in Commande.STATUTS_NON_PAYES:
         commande.valider(None, reference_paiement=charge_ref)
         logger.info("Commande %s validée via webhook Senfenico", commande.numero_commande)
 

@@ -21,7 +21,8 @@ const CATEGORIES = [
 ]
 
 function StatutBanner({ profil }) {
-  if (profil.est_valide) {
+  const statut = profil.statut_validation
+  if (statut === 'VALIDE') {
     return (
       <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl">
         <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
@@ -29,14 +30,18 @@ function StatutBanner({ profil }) {
       </div>
     )
   }
-  if (profil.motif_rejet) {
+  if (statut === 'CORRECTION' || statut === 'REFUSE') {
     return (
       <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
         <XCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm text-red-700 font-medium">Dossier rejeté</p>
-          <p className="text-sm text-red-600 mt-0.5">Motif : {profil.motif_rejet}</p>
-          <p className="text-xs text-red-500 mt-1">Modifiez les informations ci-dessous et resoumettez.</p>
+          <p className="text-sm text-red-700 font-medium">{profil.statut_validation_display}</p>
+          {profil.motif_rejet && <p className="text-sm text-red-600 mt-0.5">{profil.motif_rejet}</p>}
+          {statut === 'CORRECTION' && (
+            <Link to="/vendeur/inscription" className="text-xs text-red-600 underline mt-1 inline-block">
+              Corriger et transmettre à nouveau
+            </Link>
+          )}
         </div>
       </div>
     )
@@ -44,9 +49,7 @@ function StatutBanner({ profil }) {
   return (
     <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
       <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
-      <p className="text-sm text-amber-700 font-medium">
-        Boutique en attente de validation par l'administrateur. Votre compte reste utilisable normalement entre-temps.
-      </p>
+      <p className="text-sm text-amber-700 font-medium">{profil.statut_validation_display}</p>
     </div>
   )
 }
@@ -101,9 +104,9 @@ export default function VendeurProfil() {
   const onSubmit = (data) => {
     const form = new FormData()
     Object.entries(data).forEach(([k, v]) => {
-      if (k === 'photo_cnib' || k === 'photo_visage') {
-        if (v?.[0]) form.append(k, v[0])
-      } else if (v !== undefined && v !== null) {
+      if (k === 'photo_boutique') {
+        if (v?.[0] instanceof File) form.append(k, v[0])
+      } else if (v !== undefined && v !== null && typeof v !== 'object') {
         form.append(k, v)
       }
     })
@@ -194,21 +197,14 @@ export default function VendeurProfil() {
                 <input className="input" defaultValue={profil?.adresse_commerce}
                   placeholder="Adresse complète" {...register('adresse_commerce', { required: estExterieur })} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Photo CNIB</label>
-                  <input type="file" accept="image/*" className="input text-xs" {...register('photo_cnib')} />
-                </div>
-                <div>
-                  <label className="label flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Photo du visage</label>
-                  <input type="file" accept="image/*" capture="user" className="input text-xs" {...register('photo_visage')} />
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 -mt-2">
-                Requis pour la validation d'un commerce extérieur au campus (§3.3).
-              </p>
             </>
           )}
+
+          <div>
+            <label className="label flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Photo de la boutique</label>
+            {profil?.photo_boutique && <img src={profil.photo_boutique} alt="" className="w-full h-32 object-cover rounded-xl mb-2" />}
+            <input type="file" accept="image/*" className="input text-xs" {...register('photo_boutique')} />
+          </div>
 
           <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="btn-primary w-full btn-lg">
             {createMut.isPending || updateMut.isPending

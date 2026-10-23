@@ -26,8 +26,12 @@ client.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       removeStoredToken()
+      // Les pages publiques (campus, boutiques, panier, parcours de commande
+      // et d'inscription vendeur) restent accessibles sans compte.
       const currentPath = window.location.pathname
-      if (currentPath !== '/connexion') {
+      const estPrive = /^\/(etudiant|admin|chef|livreur|vendeur)(\/|$)/.test(currentPath)
+        && !currentPath.startsWith('/vendeur/inscription')
+      if (estPrive) {
         window.location.href = '/connexion'
       }
     }

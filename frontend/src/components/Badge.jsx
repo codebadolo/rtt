@@ -1,6 +1,6 @@
 const STATUS_COLORS = {
   // Commandes
-  BROUILLON:      'bg-gray-100 text-gray-600',
+  BROUILLON:      'bg-amber-50 text-amber-700',
   EN_ATTENTE:     'bg-yellow-100 text-yellow-700',
   ACCEPTEE:       'bg-cyan-100 text-cyan-700',
   EN_PREPARATION: 'bg-orange-100 text-orange-700',
@@ -21,14 +21,14 @@ const STATUS_COLORS = {
 }
 
 const STATUS_LABELS = {
-  BROUILLON:          'Brouillon',
+  BROUILLON:          'En attente de paiement',
   EN_ATTENTE:         'En attente',
   ACCEPTEE:           'Acceptée',
   EN_PREPARATION:     'En préparation',
   PRETE:              'Prête',
   EN_LIVRAISON:       'En livraison',
   LIVREE:             'Livrée',
-  VALIDEE:            'Validée',
+  VALIDEE:            'Confirmée (payée)',
   DISTRIBUEE:         'Distribuée',
   REJETEE:            'Rejetée',
   ANNULEE:            'Annulée',

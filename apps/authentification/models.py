@@ -106,7 +106,16 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     # Nouveaux champs utiles
     adresse = models.TextField('Adresse', null=True, blank=True)
     date_naissance = models.DateField('Date de naissance', null=True, blank=True)
-    
+
+    # Parcours progressif V1 : date de naissance limitée au jour + mois
+    # (l'année n'est pas demandée), téléphone vérifié par OTP SMS.
+    jour_naissance = models.PositiveSmallIntegerField('Jour de naissance', null=True, blank=True)
+    mois_naissance = models.PositiveSmallIntegerField('Mois de naissance', null=True, blank=True)
+    telephone_verifie = models.BooleanField('Téléphone vérifié', default=False)
+    date_verification_telephone = models.DateTimeField(
+        'Date de vérification du téléphone', null=True, blank=True,
+    )
+
     objects = GestionnaireUtilisateur()
     
     USERNAME_FIELD = 'email'
@@ -164,6 +173,30 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     def est_vendeur_exterieur(self):
         return self.role == self.Role.VENDEUR_EXTERIEUR
 
+    # ── État du parcours progressif (§9 du dossier V1) ──
+    @property
+    def infos_personnelles_renseignees(self):
+        return bool(self.nom and self.prenom)
+
+    @property
+    def date_naissance_renseignee(self):
+        return bool(self.jour_naissance and self.mois_naissance)
+
+    @property
+    def profil_etudiant_actif(self):
+        return (
+            self.est_etudiant and self.est_actif
+            and self.infos_personnelles_renseignees
+            and self.date_naissance_renseignee
+            and self.telephone_verifie
+        )
+
+    def marquer_telephone_verifie(self, telephone):
+        self.telephone = telephone
+        self.telephone_verifie = True
+        self.date_verification_telephone = timezone.now()
+        self.save(update_fields=['telephone', 'telephone_verifie', 'date_verification_telephone'])
+
     def save(self, *args, **kwargs):
         if self.role in ('ADMIN', 'ADMIN_UNIVERSITAIRE', 'CHEF_SECTEUR'):
             self.is_staff = True
@@ -207,8 +240,13 @@ class OTPVerification(models.Model):
     telephone = models.CharField('Numéro de téléphone', max_length=20, db_index=True)
     code = models.CharField('Code OTP', max_length=6)
     est_verifie = models.BooleanField('Vérifié', default=False)
+    tentatives = models.PositiveSmallIntegerField('Tentatives de saisie', default=0)
     date_creation = models.DateTimeField('Date création', auto_now_add=True)
     date_expiration = models.DateTimeField('Expiration')
+
+    MAX_TENTATIVES = 5
+    DELAI_RENVOI_SECONDES = 60
+    MAX_ENVOIS_PAR_HEURE = 5
 
     class Meta:
         verbose_name = 'Vérification OTP'
@@ -239,12 +277,33 @@ class OTPVerification(models.Model):
         return cls.objects.create(telephone=telephone, code=code, date_expiration=expiration)
 
     @classmethod
+    def peut_envoyer(cls, telephone):
+        """Limite anti-abus : un envoi par minute, cinq par heure et par numéro."""
+        maintenant = timezone.now()
+        recents = cls.objects.filter(telephone=telephone)
+        if recents.filter(date_creation__gte=maintenant - timezone.timedelta(seconds=cls.DELAI_RENVOI_SECONDES)).exists():
+            return False, 'Veuillez patienter une minute avant de redemander un code.'
+        if recents.filter(date_creation__gte=maintenant - timezone.timedelta(hours=1)).count() >= cls.MAX_ENVOIS_PAR_HEURE:
+            return False, 'Trop de codes demandés pour ce numéro. Réessayez dans une heure.'
+        return True, ''
+
+    @classmethod
     def verifier(cls, telephone, code):
-        otp = cls.objects.filter(telephone=telephone, code=code, est_verifie=False).order_by('-date_creation').first()
-        if otp and otp.est_valide():
-            otp.consommer()
-            return True
-        return False
+        """
+        Vérifie le dernier code actif du numéro. Au-delà de MAX_TENTATIVES
+        saisies erronées, le code est invalidé (il faut en redemander un).
+        """
+        otp = cls.objects.filter(telephone=telephone, est_verifie=False).order_by('-date_creation').first()
+        if not otp or not otp.est_valide():
+            return False
+        if otp.code != code:
+            otp.tentatives += 1
+            if otp.tentatives >= cls.MAX_TENTATIVES:
+                otp.est_verifie = True  # code grillé
+            otp.save(update_fields=['tentatives', 'est_verifie'])
+            return False
+        otp.consommer()
+        return True
 
 
 # ─────────────────── Sanctions Utilisateurs ───────────────────

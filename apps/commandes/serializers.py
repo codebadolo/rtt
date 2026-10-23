@@ -39,9 +39,11 @@ class LigneCommandeCreateSerializer(serializers.Serializer):
     prix_unitaire = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
     def validate(self, data):
-        if not data.get('prix_unitaire'):
-            variante = data.get('variante')
-            data['prix_unitaire'] = variante.prix if variante else data['produit'].prix_base
+        # Prix toujours recalculé côté serveur : la valeur envoyée par le client est ignorée.
+        variante = data.get('variante')
+        if variante and variante.produit_id != data['produit'].id:
+            raise serializers.ValidationError({'variante': 'Variante invalide pour ce produit.'})
+        data['prix_unitaire'] = variante.prix_total if variante else data['produit'].prix_base
         return data
 
 
@@ -64,6 +66,23 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'numero_commande', 'statut', 'total_ht', 'total_ttc', 'frais_service']
 
     def validate(self, data):
+        # Parcours V1 : informations personnelles + téléphone vérifié par OTP
+        # avant toute commande (l'OTP ne valide pas la commande pour autant).
+        user = self.context['request'].user
+        if user.est_etudiant:
+            manquants = []
+            if not user.infos_personnelles_renseignees:
+                manquants.append('nom et prénom')
+            if not user.date_naissance_renseignee:
+                manquants.append('date de naissance')
+            if not user.telephone_verifie:
+                manquants.append('vérification du téléphone')
+            if manquants:
+                raise serializers.ValidationError(
+                    {'detail': 'Complétez votre profil avant de commander : ' + ', '.join(manquants) + '.',
+                     'code': 'profil_incomplet'}
+                )
+
         config = Configuration.get_active()
         ouvert, message = config.commandes_sont_ouvertes()
         if not ouvert:
@@ -85,6 +104,14 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
                 {'detail': 'Une commande ne peut contenir que des produits d\'un seul vendeur. '
                            'Créez une commande séparée pour chaque vendeur.'}
             )
+        for l in lignes:
+            produit = l['produit']
+            if not produit.est_actif:
+                raise serializers.ValidationError({'detail': f'« {produit.nom} » n\'est plus disponible.'})
+            if produit.vendeur_id and not produit.vendeur.boutique_active:
+                raise serializers.ValidationError(
+                    {'detail': f'La boutique « {produit.vendeur.nom_boutique} » n\'accepte pas de commandes actuellement.'}
+                )
         data['_vendeur_id'] = vendeurs.pop() if vendeurs else None
 
         return data
@@ -93,7 +120,8 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         lignes_data = validated_data.pop('lignes')
         vendeur_id = validated_data.pop('_vendeur_id', None)
         validated_data['secteur'] = validated_data['salle'].secteur
-        validated_data['statut'] = 'EN_ATTENTE'
+        # En préparation du paiement : confirmée seulement par le paiement
+        validated_data['statut'] = 'BROUILLON'
         if vendeur_id:
             validated_data['vendeur_id'] = vendeur_id
         commande = Commande.objects.create(**validated_data)
@@ -159,6 +187,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
         source='get_methode_paiement_display', read_only=True
     )
     paiement_senfenico = PaiementSenfenicoInlineSerializer(read_only=True)
+    paiement_confirme = serializers.BooleanField(read_only=True)
     a_note_vendeur = serializers.SerializerMethodField()
     a_note_livreur = serializers.SerializerMethodField()
 
@@ -174,7 +203,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'methode_paiement', 'methode_paiement_display',
             'telephone_paiement', 'reference_paiement', 'capture_paiement',
             'description_besoin',
-            'motif_rejet', 'date_validation',
+            'motif_rejet', 'date_validation', 'paiement_confirme',
             'lignes', 'paiement_senfenico',
             'a_note_vendeur', 'a_note_livreur',
             'date_creation', 'date_modification',

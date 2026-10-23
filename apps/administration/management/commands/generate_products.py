@@ -36,13 +36,15 @@ class Command(BaseCommand):
                 'description': 'Boutique de test générée automatiquement',
                 'categorie_principale': 'SANDWICH',
                 'est_valide': True,
+                'statut_validation': 'VALIDE',
                 'est_actif': True,
             }
         )
         if not profil_vendeur.est_valide:
             profil_vendeur.est_valide = True
+            profil_vendeur.statut_validation = 'VALIDE'
             profil_vendeur.est_actif = True
-            profil_vendeur.save(update_fields=['est_valide', 'est_actif'])
+            profil_vendeur.save(update_fields=['est_valide', 'statut_validation', 'est_actif'])
 
         produits_data = [
             {

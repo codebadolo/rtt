@@ -244,9 +244,12 @@ class ProduitListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Produit
         fields = [
-            'id', 'nom', 'categorie', 'categorie_display',
-            'prix_base', 'image', 'image_url', 'en_stock', 'est_actif'
+            'id', 'nom', 'description', 'categorie', 'categorie_display',
+            'prix_base', 'image', 'image_url', 'en_stock', 'est_actif',
+            'vendeur', 'vendeur_nom',
         ]
+
+    vendeur_nom = serializers.CharField(source='vendeur.nom_boutique', read_only=True, default=None)
     
     def get_image_url(self, obj):
         if obj.image:
@@ -269,9 +272,12 @@ class ProduitDetailSerializer(serializers.ModelSerializer):
             'id', 'nom', 'description', 'categorie', 'prix_base',
             'image', 'image_url', 'stock_limite', 'quantite_stock',
             'en_stock', 'variantes', 'options', 'est_actif',
+            'vendeur', 'vendeur_nom',
             'cree_par', 'cree_par_nom', 'date_creation', 'date_modification'
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification', 'cree_par']
+
+    vendeur_nom = serializers.CharField(source='vendeur.nom_boutique', read_only=True, default=None)
     
     def get_image_url(self, obj):
         if obj.image:
@@ -451,27 +457,47 @@ class JournalAuditSerializer(serializers.ModelSerializer):
 # ──────────────────── SERIALIZER PROFIL VENDEUR ────────────────────
 class ProfilVendeurSerializer(serializers.ModelSerializer):
     """
-    Self-service (§3.2) : le vendeur crée/édite sa propre boutique.
-    Les champs de validation restent en lecture seule ici.
+    Self-service : le vendeur crée/édite sa propre boutique (niveau 3 du
+    parcours vendeur). Le statut de validation n'est modifiable que par
+    Ritôtô (ou par la soumission du dossier). Aucune donnée CNIB (§8).
     """
     utilisateur_nom = serializers.SerializerMethodField()
     utilisateur_email = serializers.CharField(source='utilisateur.email', read_only=True)
+    utilisateur_telephone = serializers.CharField(source='utilisateur.telephone', read_only=True)
+    telephone_verifie = serializers.BooleanField(source='utilisateur.telephone_verifie', read_only=True)
     note_moyenne = serializers.FloatField(read_only=True)
+    statut_validation_display = serializers.CharField(source='get_statut_validation_display', read_only=True)
+    categorie_display = serializers.CharField(source='get_categorie_principale_display', read_only=True)
+    emplacement_nom = serializers.CharField(source='emplacement.nom', read_only=True, default=None)
+    universite_nom = serializers.CharField(source='universite.nom', read_only=True, default=None)
+    boutique_active = serializers.BooleanField(read_only=True)
+    peut_soumettre = serializers.BooleanField(read_only=True)
+    nb_produits = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfilVendeur
         fields = [
-            'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email', 'universite',
-            'nom_boutique', 'description', 'categorie_principale', 'emplacement',
+            'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email',
+            'utilisateur_telephone', 'telephone_verifie',
+            'universite', 'universite_nom',
+            'nom_boutique', 'description', 'categorie_principale', 'categorie_display',
+            'emplacement', 'emplacement_nom', 'photo_boutique',
             'mode_livraison', 'capacite_max_commandes',
-            'photo_cnib', 'photo_visage', 'adresse_commerce', 'horaires_disponibilite',
-            'est_valide', 'motif_rejet', 'est_actif', 'note_moyenne',
-            'date_creation', 'date_modification',
+            'adresse_commerce', 'horaires_disponibilite',
+            'statut_validation', 'statut_validation_display', 'boutique_active', 'peut_soumettre',
+            'est_valide', 'motif_rejet', 'date_soumission', 'est_actif', 'note_moyenne',
+            'nb_produits', 'date_creation', 'date_modification',
         ]
-        read_only_fields = ['id', 'utilisateur', 'est_valide', 'motif_rejet', 'date_creation', 'date_modification']
+        read_only_fields = [
+            'id', 'utilisateur', 'statut_validation', 'est_valide', 'motif_rejet',
+            'date_soumission', 'date_creation', 'date_modification',
+        ]
 
     def get_utilisateur_nom(self, obj):
         return obj.utilisateur.get_full_name()
+
+    def get_nb_produits(self, obj):
+        return obj.produits.count()
 
 
 class ProfilVendeurAdminSerializer(ProfilVendeurSerializer):
@@ -483,6 +509,23 @@ class ProfilVendeurAdminSerializer(ProfilVendeurSerializer):
 
     def get_valide_par_nom(self, obj):
         return obj.valide_par.get_full_name() if obj.valide_par else None
+
+
+class BoutiquePubliqueSerializer(serializers.ModelSerializer):
+    """Boutique validée, consultable sans compte (dossier V1 §2)."""
+    categorie_display = serializers.CharField(source='get_categorie_principale_display', read_only=True)
+    emplacement_nom = serializers.CharField(source='emplacement.nom', read_only=True, default=None)
+    note_moyenne = serializers.FloatField(read_only=True)
+    nb_produits = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ProfilVendeur
+        fields = [
+            'id', 'nom_boutique', 'description', 'categorie_principale', 'categorie_display',
+            'photo_boutique', 'emplacement', 'emplacement_nom', 'adresse_commerce',
+            'universite', 'mode_livraison', 'note_moyenne', 'nb_produits',
+        ]
+        read_only_fields = fields
 
 
 # ──────────────────── SERIALIZER PROFIL LIVREUR ────────────────────
@@ -497,7 +540,7 @@ class ProfilLivreurSerializer(serializers.ModelSerializer):
         model = ProfilLivreur
         fields = [
             'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email', 'universite',
-            'photo_cnib', 'photo_visage', 'zones_livraison',
+            'photo_visage', 'zones_livraison',
             'boutiques_attribuees', 'boutiques_noms', 'capacite_max_livraisons',
             'en_service', 'compteur_abandon', 'est_volant',
             'est_valide', 'motif_rejet', 'note_moyenne',

@@ -58,14 +58,13 @@ export default function LivreurProfil() {
     mutationFn: (form) => profilsApi.updateLivreur(form),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mon-profil-livreur'] })
-      toast.success('Documents envoyés')
+      toast.success('Photo envoyée')
     },
     onError: () => toast.error('Erreur lors de l\'envoi'),
   })
 
   const onSubmitKyc = (data) => {
     const form = new FormData()
-    if (data.photo_cnib?.[0]) form.append('photo_cnib', data.photo_cnib[0])
     if (data.photo_visage?.[0]) form.append('photo_visage', data.photo_visage[0])
     kycMut.mutate(form)
   }
@@ -150,14 +149,9 @@ export default function LivreurProfil() {
         <form onSubmit={handleSubmit(onSubmitKyc)} className="card space-y-4">
           <div className="flex items-center gap-2">
             <Upload className="h-5 w-5 text-primary-500" />
-            <h2 className="font-semibold text-gray-800">Documents d'identité (CNIB)</h2>
+            <h2 className="font-semibold text-gray-800">Photo du profil</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Photo CNIB</label>
-              {profil.photo_cnib && <p className="text-xs text-green-600 mb-1">Document déjà envoyé</p>}
-              <input type="file" accept="image/*" className="input text-xs" {...register('photo_cnib')} />
-            </div>
+          <div>
             <div>
               <label className="label">Photo du visage</label>
               {profil.photo_visage && <p className="text-xs text-green-600 mb-1">Document déjà envoyé</p>}
@@ -165,7 +159,7 @@ export default function LivreurProfil() {
             </div>
           </div>
           <button type="submit" disabled={kycMut.isPending} className="btn-primary w-full">
-            {kycMut.isPending ? 'Envoi…' : 'Envoyer les documents'}
+            {kycMut.isPending ? 'Envoi…' : 'Envoyer la photo'}
           </button>
         </form>
 

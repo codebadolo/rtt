@@ -176,7 +176,7 @@ export default function StudentDashboard() {
             </p>
           </div>
           <Link
-            to="/etudiant/produits"
+            to="/campus"
             className="bg-orange-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-orange-600 transition-colors shadow-sm"
           >
             Commander maintenant →
@@ -186,7 +186,7 @@ export default function StudentDashboard() {
         {/* Quick actions */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <Link
-            to="/etudiant/produits"
+            to="/campus"
             className="bg-white border border-gray-100 rounded-2xl p-5 hover:shadow-md hover:border-orange-200 transition-all group"
           >
             <div className="w-11 h-11 bg-orange-100 group-hover:bg-orange-500 rounded-xl flex items-center justify-center mb-3 transition-colors">

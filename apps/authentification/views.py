@@ -15,6 +15,7 @@ from .serializers import (
     ChangementMotDePasseSerializer, DemandeReinitialisationSerializer,
     ReinitialisationMotDePasseSerializer,
     OTPEnvoyerSerializer, OTPVerifierSerializer, DossierKYCSerializer,
+    VerificationTelephoneParcoursSerializer,
 )
 from .permissions import (
     EstAuthentifie, EstAdmin, EstEtudiant,
@@ -106,10 +107,19 @@ class AuthViewSet(viewsets.GenericViewSet):
             logger.info(f"Déconnexion: {email}")
         return Response({'message': 'Déconnexion réussie'})
     
-    @action(detail=False, methods=['get'], url_path='profil')
+    @action(detail=False, methods=['get', 'patch'], url_path='profil')
     def profil(self, request):
         if not request.user.is_authenticated:
             return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+        if request.method == 'PATCH':
+            # Niveaux du parcours progressif : nom/prénom, jour/mois de naissance, université.
+            # Le téléphone ne se modifie que via la vérification OTP.
+            champs = ('nom', 'prenom', 'jour_naissance', 'mois_naissance', 'universite', 'adresse')
+            data = {k: v for k, v in request.data.items() if k in champs}
+            serializer = self.get_serializer(request.user, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
     
@@ -430,11 +440,11 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# ──────────────────── OTP INSCRIPTION ────────────────────
+# ──────────────────── OTP TÉLÉPHONE ────────────────────
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def otp_envoyer_view(request):
-    """POST /api/auth/otp/envoyer/ — envoie le code OTP (WhatsApp puis SMS, §3.1)."""
+    """POST /api/auth/otp/envoyer/ — envoie le code OTP par SMS."""
     serializer = OTPEnvoyerSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     resultat = serializer.save()
@@ -448,6 +458,28 @@ def otp_verifier_view(request):
     serializer = OTPVerifierSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     return Response({'verifie': True})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def parcours_verifier_telephone_view(request):
+    """
+    POST /api/auth/parcours/verifier-telephone/
+
+    Niveau OTP du parcours progressif étudiant / vendeur. Valide le numéro et
+    retourne un token de session. Ne crée ni ne valide aucune commande : le
+    client reprend ensuite son parcours (récapitulatif → paiement).
+    """
+    serializer = VerificationTelephoneParcoursSerializer(data=request.data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    utilisateur, nouveau = serializer.save()
+    utilisateur.marquer_connexion()
+    token, _ = Token.objects.get_or_create(user=utilisateur)
+    return Response({
+        'token': token.key,
+        'nouveau_compte': nouveau,
+        'user': UtilisateurDetailSerializer(utilisateur).data,
+    }, status=status.HTTP_201_CREATED if nouveau else status.HTTP_200_OK)
 
 
 # ──────────────────── VIEWSET KYC (carte étudiant) ────────────────────

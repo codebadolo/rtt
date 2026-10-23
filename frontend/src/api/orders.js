@@ -74,6 +74,7 @@ export const profilsApi = {
     const isFormData = data instanceof FormData
     return client.patch('/profil/vendeur/', data, isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}).then((r) => r.data)
   },
+  soumettreVendeur: () => client.post('/profil/vendeur/soumettre/').then((r) => r.data),
   getLivreur: () => client.get('/profil/livreur/').then((r) => r.data),
   updateLivreur: (data) => client.patch('/profil/livreur/', data).then((r) => r.data),
   basculerService: () => client.post('/utilisateurs/basculer-service/').then((r) => r.data),
@@ -82,6 +83,8 @@ export const profilsApi = {
   getVendeurAdmin: (id) => client.get(`/admin/vendeurs/${id}/`).then((r) => r.data),
   validerVendeur: (id) => client.post(`/admin/vendeurs/${id}/valider/`).then((r) => r.data),
   rejeterVendeur: (id, data) => client.post(`/admin/vendeurs/${id}/rejeter/`, data).then((r) => r.data),
+  demanderCorrectionVendeur: (id, data) => client.post(`/admin/vendeurs/${id}/demander-correction/`, data).then((r) => r.data),
+  produitsVendeurAdmin: (id) => client.get(`/admin/vendeurs/${id}/produits/`).then((r) => r.data),
 
   listLivreurs: (params) => client.get('/admin/livreurs/', { params }).then((r) => r.data),
   getLivreurAdmin: (id) => client.get(`/admin/livreurs/${id}/`).then((r) => r.data),

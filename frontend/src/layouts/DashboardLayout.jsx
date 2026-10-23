@@ -37,11 +37,10 @@ import NotificationBell from '../components/NotificationBell'
 const navByRole = {
   ETUDIANT: [
     { to: '/etudiant', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-    { to: '/etudiant/produits', label: 'Produits', icon: ShoppingBag },
-    { to: '/etudiant/panier', label: 'Panier', icon: ShoppingCart, badge: 'cart' },
+    { to: '/campus', label: 'Boutiques du campus', icon: ShoppingBag },
+    { to: '/panier', label: 'Panier', icon: ShoppingCart, badge: 'cart' },
     { to: '/etudiant/commandes', label: 'Mes commandes', icon: ClipboardList },
     { to: '/etudiant/plaintes', label: 'Mes plaintes', icon: AlertTriangle },
-    { to: '/etudiant/kyc', label: 'Vérification KYC', icon: FileCheck },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },
   ],
   VENDEUR_INTERIEUR: [
@@ -305,7 +304,7 @@ export default function DashboardLayout({ children }) {
 
           {user?.role === 'ETUDIANT' && (
             <Link
-              to="/etudiant/panier"
+              to="/panier"
               className="relative p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-colors"
             >
               <ShoppingCart className="h-5 w-5" />

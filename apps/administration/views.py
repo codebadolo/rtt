@@ -1,7 +1,8 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
@@ -17,11 +18,11 @@ from .serializers import (
     HoraireCommandeSerializer, DashboardStatsSerializer,
     ConfigurationSerializer, SettlementRecordSerializer, SettlementCreateSerializer,
     CreneauLivraisonSerializer, JournalAuditSerializer,
-    ProfilVendeurSerializer, ProfilVendeurAdminSerializer,
+    ProfilVendeurSerializer, ProfilVendeurAdminSerializer, BoutiquePubliqueSerializer,
     ProfilLivreurSerializer, ProfilLivreurAdminSerializer,
 )
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
-from .permissions import EstAdminOuLectureSeule, PeutGererProduits, PeutGererSecteurs
+from .permissions import EstAdminOuLectureSeule, EstAdminOuVendeur, PeutGererProduits, PeutGererSecteurs
 from apps.commandes.models import Commande
 import logging
 
@@ -40,6 +41,31 @@ class UniversiteViewSet(viewsets.ReadOnlyModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         obj = self.get_object()
         return Response({'id': obj.id, 'nom': obj.nom, 'code': obj.code, 'ville': obj.ville})
+
+
+# ──────────────────── BOUTIQUES PUBLIQUES (dossier V1 §2) ────────────────────
+class BoutiqueViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Liste des vendeurs/boutiques validés d'une université, sans compte :
+    Université → vendeurs → produits. ?universite=<id> filtre par campus.
+    """
+    serializer_class = BoutiquePubliqueSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['categorie_principale']
+    search_fields = ['nom_boutique', 'description']
+
+    def get_queryset(self):
+        qs = ProfilVendeur.objects.filter(
+            statut_validation=ProfilVendeur.StatutValidation.VALIDE,
+            est_valide=True, est_actif=True, utilisateur__est_actif=True,
+        ).select_related('emplacement').annotate(
+            nb_produits=Count('produits', filter=Q(produits__est_actif=True)),
+        ).order_by('nom_boutique')
+        universite = self.request.query_params.get('universite')
+        if universite:
+            qs = qs.filter(Q(universite=universite) | Q(emplacement__universite=universite))
+        return qs
 
 
 # ──────────────────── VIEWSET SECTEUR ────────────────────
@@ -238,30 +264,86 @@ class SalleViewSet(viewsets.ModelViewSet):
 class ProduitViewSet(viewsets.ModelViewSet):
     """
     API pour la gestion des produits
+    - Lecture publique (sans compte, dossier V1 §2) : produits actifs des
+      boutiques validées (et catalogue historique non rattaché).
+    - Vendeur : gère uniquement le catalogue de sa boutique (niveau 4 du
+      parcours vendeur), y compris avant validation.
+    - Admin : tout le catalogue.
     """
-    queryset = Produit.objects.prefetch_related('variantes', 'options').all()
+    queryset = Produit.objects.select_related('vendeur').prefetch_related('variantes', 'options').all()
     permission_classes = [IsAuthenticated, PeutGererProduits]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['categorie', 'est_actif']
+    filterset_fields = ['categorie', 'est_actif', 'vendeur']
     search_fields = ['nom', 'description']
     ordering_fields = ['nom', 'prix_base', 'date_creation']
-    
+
+    ACTIONS_LECTURE = ['list', 'retrieve', 'par_categorie', 'populaires', 'recherche']
+
     def get_serializer_class(self):
         if self.action == 'list':
             return ProduitListSerializer
         return ProduitDetailSerializer
-    
+
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'par_categorie', 'populaires', 'recherche']:
-            self.permission_classes = [IsAuthenticated]
+        if self.action in self.ACTIONS_LECTURE:
+            self.permission_classes = [AllowAny]
         else:
-            self.permission_classes = [EstAdmin]
+            self.permission_classes = [IsAuthenticated, EstAdminOuVendeur]
         return [permission() for permission in self.permission_classes]
-    
+
+    def _profil_vendeur(self):
+        user = self.request.user
+        if user.is_authenticated and getattr(user, 'est_vendeur', False):
+            return ProfilVendeur.objects.filter(utilisateur=user).first()
+        return None
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and user.est_admin:
+            return queryset
+        if user.is_authenticated and user.est_vendeur:
+            return queryset.filter(vendeur__utilisateur=user)
+        queryset = queryset.filter(est_actif=True).filter(
+            Q(vendeur__isnull=True) | Q(
+                vendeur__statut_validation=ProfilVendeur.StatutValidation.VALIDE,
+                vendeur__est_valide=True, vendeur__est_actif=True,
+            )
+        )
+        universite = self.request.query_params.get('universite')
+        if universite:
+            queryset = queryset.filter(
+                Q(vendeur__universite=universite) | Q(vendeur__emplacement__universite=universite)
+            )
+        return queryset
+
     def perform_create(self, serializer):
-        """Ajoute l'utilisateur qui crée"""
-        serializer.save(cree_par=self.request.user)
-    
+        """Ajoute l'utilisateur qui crée ; un vendeur crée dans sa boutique."""
+        user = self.request.user
+        if user.est_admin:
+            serializer.save(cree_par=user)
+            return
+        profil = self._profil_vendeur()
+        if profil is None:
+            raise ValidationError({'detail': "Renseignez d'abord les informations de votre boutique."})
+        serializer.save(cree_par=user, vendeur=profil)
+
+    def perform_update(self, serializer):
+        if self.request.user.est_admin:
+            serializer.save()
+        else:
+            serializer.save(vendeur=self._profil_vendeur())
+
+    def destroy(self, request, *args, **kwargs):
+        from django.db.models import ProtectedError
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {'detail': 'Ce produit figure dans des commandes : désactivez-le plutôt que de le supprimer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     @action(detail=False, methods=['get'], url_path='par-categorie')
     def par_categorie(self, request):
         """
@@ -318,7 +400,7 @@ class ProduitViewSet(viewsets.ModelViewSet):
         if len(query) < 2:
             return Response([])
         
-        produits = self.queryset.filter(
+        produits = self.get_queryset().filter(
             Q(nom__icontains=query) | Q(description__icontains=query)
         )[:20]
         
@@ -783,12 +865,31 @@ def settlements_view(request):
     return Response(SettlementRecordSerializer(record).data, status=status.HTTP_201_CREATED)
 
 
-# ──────────────────── PROFIL VENDEUR (self-service, §3.2) ────────────────────
+# ──────────────────── PROFIL VENDEUR (self-service, dossier V1 §6) ────────────────────
+CHAMPS_BOUTIQUE_VENDEUR = (
+    'nom_boutique', 'description', 'categorie_principale', 'emplacement', 'photo_boutique',
+    'universite', 'adresse_commerce', 'mode_livraison', 'capacite_max_commandes',
+    'horaires_disponibilite',
+)
+
+
+def _synchroniser_vendeur(utilisateur, profil):
+    """Rôle intérieur/extérieur selon l'emplacement ; université déduite du secteur."""
+    if utilisateur.role in ('ETUDIANT', 'VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR'):
+        role = 'VENDEUR_EXTERIEUR' if (profil.adresse_commerce and not profil.emplacement_id) else 'VENDEUR_INTERIEUR'
+        if utilisateur.role != role:
+            utilisateur.role = role
+            utilisateur.save(update_fields=['role'])
+    if not profil.universite_id and profil.emplacement_id and profil.emplacement.universite_id:
+        profil.universite_id = profil.emplacement.universite_id
+        profil.save(update_fields=['universite'])
+
+
 @drf_api_view(['GET', 'POST', 'PATCH'])
 def profil_vendeur_view(request):
     """
-    GET   : mon profil vendeur (404 si aucune boutique créée)
-    POST  : « Créer ma boutique » — depuis un compte client existant
+    GET   : ma boutique (404 si aucune boutique créée)
+    POST  : niveau 3 — informations boutique (statut « Inscription en cours »)
     PATCH : mettre à jour ma boutique
     """
     if not request.user.is_authenticated:
@@ -801,29 +902,62 @@ def profil_vendeur_view(request):
             return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
         return Response(ProfilVendeurSerializer(profil).data)
 
+    data = {k: v for k, v in request.data.items() if k in CHAMPS_BOUTIQUE_VENDEUR}
+
     if request.method == 'POST':
         if profil:
             return Response({'error': 'Vous avez déjà une boutique'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = ProfilVendeurSerializer(data=request.data)
+        if not request.user.telephone_verifie:
+            return Response({'error': "Vérifiez d'abord votre numéro de téléphone."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        serializer = ProfilVendeurSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        # Vendeurs déjà connus du pilote : activation immédiate décidée par l'admin
-        # via l'interface admin — l'auto-inscription reste toujours en attente (§3.2)
-        instance = serializer.save(utilisateur=request.user, est_valide=False)
-        # Le rôle passe en VENDEUR_* pour activer le tableau de bord dédié
-        if request.user.role == 'ETUDIANT':
-            request.user.role = (
-                'VENDEUR_EXTERIEUR' if instance.adresse_commerce else 'VENDEUR_INTERIEUR'
-            )
-            request.user.save(update_fields=['role'])
+        # Toujours en attente : seule l'équipe Ritôtô active une boutique (§7)
+        instance = serializer.save(
+            utilisateur=request.user, est_valide=False,
+            statut_validation=ProfilVendeur.StatutValidation.BROUILLON,
+        )
+        _synchroniser_vendeur(request.user, instance)
         return Response(ProfilVendeurSerializer(instance).data, status=status.HTTP_201_CREATED)
 
     # PATCH
     if not profil:
         return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
-    serializer = ProfilVendeurSerializer(profil, data=request.data, partial=True)
+    serializer = ProfilVendeurSerializer(profil, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
-    serializer.save()
-    return Response(serializer.data)
+    instance = serializer.save()
+    _synchroniser_vendeur(request.user, instance)
+    return Response(ProfilVendeurSerializer(instance).data)
+
+
+@drf_api_view(['POST'])
+def profil_vendeur_soumettre_view(request):
+    """
+    POST /api/profil/vendeur/soumettre/ — niveau 5 : le vendeur transmet sa
+    boutique et son catalogue à Ritôtô pour validation.
+    """
+    if not request.user.is_authenticated:
+        return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+    profil = ProfilVendeur.objects.filter(utilisateur=request.user).first()
+    if not profil:
+        return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
+    if not profil.peut_soumettre:
+        return Response(
+            {'error': f'Dossier déjà transmis ({profil.get_statut_validation_display().lower()}).'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    manquants = []
+    if not request.user.telephone_verifie:
+        manquants.append('téléphone vérifié')
+    if not profil.emplacement_id and not profil.adresse_commerce:
+        manquants.append('emplacement')
+    if not profil.produits.filter(est_actif=True).exists():
+        manquants.append('au moins un produit')
+    if manquants:
+        return Response({'error': 'Informations manquantes : ' + ', '.join(manquants)},
+                        status=status.HTTP_400_BAD_REQUEST)
+    profil.soumettre()
+    return Response(ProfilVendeurSerializer(profil).data)
 
 
 # ──────────────────── PROFIL LIVREUR (self-service, §3.4) ────────────────────
@@ -844,7 +978,7 @@ def profil_livreur_view(request):
         return Response(ProfilLivreurSerializer(profil).data)
 
     # PATCH — le livreur ne peut modifier que ses zones, son statut en_service et ses documents KYC
-    champs_autorises = ('zones_livraison', 'en_service', 'photo_cnib', 'photo_visage')
+    champs_autorises = ('zones_livraison', 'en_service', 'photo_visage')
     data = {k: v for k, v in request.data.items() if k in champs_autorises}
     serializer = ProfilLivreurSerializer(profil, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
@@ -859,8 +993,8 @@ class AdminVendeurViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ProfilVendeurAdminSerializer
     permission_classes = [IsAuthenticated, EstAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['est_valide', 'est_actif', 'universite', 'categorie_principale']
-    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+    filterset_fields = ['statut_validation', 'est_valide', 'est_actif', 'universite', 'categorie_principale']
+    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email', 'utilisateur__telephone']
 
     @action(detail=True, methods=['post'], url_path='valider')
     def valider(self, request, pk=None):
@@ -876,6 +1010,21 @@ class AdminVendeurViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
         profil.rejeter(request.user, motif)
         return Response(ProfilVendeurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['post'], url_path='demander-correction')
+    def demander_correction(self, request, pk=None):
+        profil = self.get_object()
+        motif = request.data.get('motif', '')
+        if not motif:
+            return Response({'error': 'Précisez les corrections attendues'}, status=status.HTTP_400_BAD_REQUEST)
+        profil.demander_correction(request.user, motif)
+        return Response(ProfilVendeurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['get'], url_path='produits')
+    def produits(self, request, pk=None):
+        """Catalogue soumis par le vendeur, pour vérification."""
+        profil = self.get_object()
+        return Response(ProduitListSerializer(profil.produits.all(), many=True).data)
 
 
 # ──────────────────── ADMIN — VALIDATION LIVREURS ────────────────────

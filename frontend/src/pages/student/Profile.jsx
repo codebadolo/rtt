@@ -1,9 +1,8 @@
-import { Eye, EyeOff, Lock, Save, User } from 'lucide-react'
+import { Eye, EyeOff, Lock, Save, ShieldCheck, User } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { authApi } from '../../api/auth'
-import { usersApi } from '../../api/users'
 import Breadcrumb from '../../components/Breadcrumb'
 import DashboardLayout from '../../layouts/DashboardLayout'
 import useAuthStore from '../../stores/authStore'
@@ -17,17 +16,25 @@ function ProfileSection({ user, onUpdate }) {
     defaultValues: {
       prenom: user?.prenom ?? '',
       nom: user?.nom ?? '',
-      email: user?.email ?? '',
-      telephone: user?.telephone ?? '',
+      jour_naissance: user?.jour_naissance ? String(user.jour_naissance) : '',
+      mois_naissance: user?.mois_naissance ? String(user.mois_naissance) : '',
     },
   })
+  const compteTelephone = user?.email?.endsWith('@tel.ritoto-campus.local')
 
   const onSubmit = async (data) => {
     try {
-      await onUpdate(data)
+      await onUpdate({
+        prenom: data.prenom,
+        nom: data.nom,
+        jour_naissance: data.jour_naissance ? Number(data.jour_naissance) : null,
+        mois_naissance: data.mois_naissance ? Number(data.mois_naissance) : null,
+      })
       toast.success('Profil mis à jour')
     } catch (err) {
-      toast.error(err.response?.data?.detail ?? 'Erreur lors de la mise à jour')
+      const d = err.response?.data
+      const v = d?.detail ?? d?.jour_naissance ?? d?.mois_naissance
+      toast.error((Array.isArray(v) ? v[0] : v) ?? 'Erreur lors de la mise à jour')
     }
   }
 
@@ -62,27 +69,46 @@ function ProfileSection({ user, onUpdate }) {
           </div>
         </div>
 
-        <div>
-          <label className="label">Adresse email</label>
-          <input
-            type="email"
-            className={`input ${errors.email ? 'border-red-400' : ''}`}
-            {...register('email', {
-              required: 'Email requis',
-              pattern: { value: /\S+@\S+\.\S+/, message: 'Email invalide' },
-            })}
-          />
-          {errors.email && <p className="form-error">{errors.email.message}</p>}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Jour de naissance</label>
+            <select className="input" {...register('jour_naissance')}>
+              <option value="">—</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((j) => <option key={j} value={j}>{j}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Mois de naissance</label>
+            <select className="input" {...register('mois_naissance')}>
+              <option value="">—</option>
+              {['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+                .map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+          </div>
         </div>
+
+        {!compteTelephone && (
+          <div>
+            <label className="label">Adresse email</label>
+            <input type="email" className="input bg-gray-50" value={user?.email ?? ''} readOnly />
+          </div>
+        )}
 
         <div>
           <label className="label">Téléphone</label>
-          <input
-            type="tel"
-            placeholder="Ex: 07 00 00 00 00"
-            className="input"
-            {...register('telephone')}
-          />
+          <div className="flex items-center gap-3">
+            <input type="tel" className="input bg-gray-50" value={user?.telephone ?? ''} readOnly />
+            {user?.telephone_verifie ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-green-700 whitespace-nowrap">
+                <ShieldCheck className="h-4 w-4" /> Vérifié
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-amber-700 whitespace-nowrap">Non vérifié</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-400 mt-1">
+            Le numéro se vérifie (ou se change) par code SMS lors de votre prochaine commande.
+          </p>
         </div>
 
         <div className="pt-2">
@@ -213,7 +239,7 @@ export default function StudentProfile() {
   const { user, setUser } = useAuthStore()
 
   const handleProfileUpdate = async (data) => {
-    const updated = await usersApi.update(user.id, data)
+    const updated = await authApi.updateProfile(data)
     setUser({ ...user, ...updated })
   }
 
@@ -239,12 +265,14 @@ export default function StudentProfile() {
             <p className="font-semibold text-gray-800 text-lg">
               {user?.prenom} {user?.nom}
             </p>
-            <p className="text-gray-400 text-sm">{user?.email}</p>
+            <p className="text-gray-400 text-sm">
+              {user?.email?.endsWith('@tel.ritoto-campus.local') ? user?.telephone : user?.email}
+            </p>
           </div>
         </div>
 
         <ProfileSection user={user} onUpdate={handleProfileUpdate} />
-        <PasswordSection />
+        {!user?.email?.endsWith('@tel.ritoto-campus.local') && <PasswordSection />}
       </div>
     </DashboardLayout>
   )

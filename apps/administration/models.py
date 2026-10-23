@@ -569,8 +569,17 @@ class SettlementRecord(models.Model):
 class ProfilVendeur(models.Model):
     """
     Profil boutique d'un vendeur (intérieur ou extérieur).
-    Créé lors de l'inscription, activé après validation admin.
+    Créé lors de l'inscription progressive, activé après validation Ritôtô
+    (dossier V1 §6-7) : la boutique n'est visible et ne reçoit de commandes
+    qu'au statut VALIDE.
     """
+
+    class StatutValidation(models.TextChoices):
+        BROUILLON = 'BROUILLON', 'Inscription en cours'
+        EN_ATTENTE = 'EN_ATTENTE', 'En attente de validation'
+        CORRECTION = 'CORRECTION', 'Correction demandée'
+        VALIDE = 'VALIDE', 'Validée — boutique active'
+        REFUSE = 'REFUSE', 'Activation refusée'
 
     MODE_LIVRAISON = [
         ('SOI_MEME', 'Livre soi-même'),
@@ -618,9 +627,12 @@ class ProfilVendeur(models.Model):
         default=20,
     )
 
-    # KYC
-    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/vendeurs/cnib/', null=True, blank=True)
-    photo_visage = models.ImageField('Photo visage', upload_to='kyc/vendeurs/visage/', null=True, blank=True)
+    photo_boutique = models.ImageField('Photo de la boutique', upload_to='boutiques/', null=True, blank=True)
+
+    # Hérités — plus collectés depuis la V1 (CNIB supprimée du parcours, §8).
+    # Colonnes conservées pour compatibilité de la base de production.
+    photo_cnib = models.ImageField('Photo CNIB (obsolète)', upload_to='kyc/vendeurs/cnib/', null=True, blank=True)
+    photo_visage = models.ImageField('Photo visage (obsolète)', upload_to='kyc/vendeurs/visage/', null=True, blank=True)
 
     # Vendeur extérieur uniquement
     adresse_commerce = models.TextField('Adresse du commerce', null=True, blank=True)
@@ -632,6 +644,14 @@ class ProfilVendeur(models.Model):
     )
 
     # Validation
+    statut_validation = models.CharField(
+        'Statut de validation',
+        max_length=12,
+        choices=StatutValidation.choices,
+        default=StatutValidation.EN_ATTENTE,
+        db_index=True,
+    )
+    # est_valide reste synchronisé avec statut_validation == VALIDE (compat).
     est_valide = models.BooleanField('Compte validé', default=False)
     valide_par = models.ForeignKey(
         'authentification.Utilisateur',
@@ -641,7 +661,9 @@ class ProfilVendeur(models.Model):
         related_name='vendeurs_valides',
     )
     date_validation = models.DateTimeField('Date de validation', null=True, blank=True)
-    motif_rejet = models.TextField('Motif de rejet', null=True, blank=True)
+    # Message de l'équipe Ritôtô : motif du refus ou corrections à apporter.
+    motif_rejet = models.TextField('Motif (refus / correction)', null=True, blank=True)
+    date_soumission = models.DateTimeField('Date de soumission', null=True, blank=True)
 
     est_actif = models.BooleanField('Boutique active', default=True)
     date_creation = models.DateTimeField('Date création', auto_now_add=True)
@@ -655,21 +677,47 @@ class ProfilVendeur(models.Model):
     def __str__(self):
         return f"{self.nom_boutique} ({self.utilisateur.get_full_name()})"
 
+    @property
+    def boutique_active(self):
+        """Visible des étudiants et autorisée à recevoir des commandes."""
+        return self.statut_validation == self.StatutValidation.VALIDE and self.est_valide and self.est_actif
+
+    @property
+    def peut_soumettre(self):
+        return self.statut_validation in (
+            self.StatutValidation.BROUILLON, self.StatutValidation.CORRECTION,
+        )
+
+    def _changer_statut(self, statut, admin=None, motif=None):
+        self.statut_validation = statut
+        self.est_valide = statut == self.StatutValidation.VALIDE
+        champs = ['statut_validation', 'est_valide', 'motif_rejet']
+        self.motif_rejet = motif
+        if admin is not None:
+            self.valide_par = admin
+            self.date_validation = timezone.now()
+            champs += ['valide_par', 'date_validation']
+        self.save(update_fields=champs)
+
+    def soumettre(self):
+        """Le vendeur transmet son dossier (boutique + catalogue) à Ritôtô."""
+        self.date_soumission = timezone.now()
+        self.save(update_fields=['date_soumission'])
+        self._changer_statut(self.StatutValidation.EN_ATTENTE, motif=None)
+        JournalAudit.enregistrer(self.utilisateur, 'SOUMISSION_VENDEUR', self, f'Boutique "{self.nom_boutique}" soumise')
+
     def valider(self, admin):
-        self.est_valide = True
-        self.valide_par = admin
-        self.date_validation = timezone.now()
-        self.motif_rejet = None
-        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
+        self._changer_statut(self.StatutValidation.VALIDE, admin)
         JournalAudit.enregistrer(admin, 'VALIDATION_VENDEUR', self, f'Boutique "{self.nom_boutique}" validée')
 
+    def demander_correction(self, admin, motif):
+        self._changer_statut(self.StatutValidation.CORRECTION, admin, motif)
+        JournalAudit.enregistrer(admin, 'CORRECTION_VENDEUR', self, f'Boutique "{self.nom_boutique}" : {motif}')
+
     def rejeter(self, admin, motif):
-        self.est_valide = False
-        self.valide_par = admin
-        self.date_validation = timezone.now()
-        self.motif_rejet = motif
-        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
-        JournalAudit.enregistrer(admin, 'REJET_VENDEUR', self, f'Boutique "{self.nom_boutique}" rejetée : {motif}')
+        """Refus d'activation."""
+        self._changer_statut(self.StatutValidation.REFUSE, admin, motif)
+        JournalAudit.enregistrer(admin, 'REJET_VENDEUR', self, f'Boutique "{self.nom_boutique}" refusée : {motif}')
 
     SEUIL_ALERTE_NOTE = 3.0
 
@@ -708,7 +756,8 @@ class ProfilLivreur(models.Model):
     )
 
     # KYC obligatoire
-    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/livreurs/cnib/', null=True, blank=True)
+    # CNIB supprimée du parcours V1 (§8) — colonne conservée pour compat production.
+    photo_cnib = models.ImageField('Photo CNIB (obsolète)', upload_to='kyc/livreurs/cnib/', null=True, blank=True)
     photo_visage = models.ImageField('Photo visage', upload_to='kyc/livreurs/visage/', null=True, blank=True)
 
     # Zones de livraison choisies par le livreur

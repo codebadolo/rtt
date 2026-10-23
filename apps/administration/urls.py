@@ -7,11 +7,12 @@ from .views import (
     AdminDashboardViewSet, configuration_view, comptabilite_view,
     solde_view, settlements_view, sync_settlement_view,
     CreneauLivraisonViewSet, JournalAuditViewSet, livreurs_en_service_view,
-    profil_vendeur_view, profil_livreur_view, AdminVendeurViewSet, AdminLivreurViewSet,
+    profil_vendeur_view, profil_vendeur_soumettre_view, profil_livreur_view, BoutiqueViewSet, AdminVendeurViewSet, AdminLivreurViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'universites', UniversiteViewSet, basename='universite')
+router.register(r'boutiques', BoutiqueViewSet, basename='boutique')
 router.register(r'secteurs', SecteurViewSet)
 router.register(r'salles', SalleViewSet)
 router.register(r'produits', ProduitViewSet)
@@ -28,6 +29,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('configuration/', configuration_view, name='configuration'),
     path('profil/vendeur/', profil_vendeur_view, name='profil-vendeur'),
+    path('profil/vendeur/soumettre/', profil_vendeur_soumettre_view, name='profil-vendeur-soumettre'),
     path('profil/livreur/', profil_livreur_view, name='profil-livreur'),
     path('admin/comptabilite/', comptabilite_view, name='comptabilite'),
     path('admin/solde/', solde_view, name='solde'),

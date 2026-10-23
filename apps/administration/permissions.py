@@ -32,3 +32,12 @@ class PeutGererSecteurs(permissions.BasePermission):
     """
     def has_permission(self, request, view):
         return request.user and request.user.est_admin
+
+
+class EstAdminOuVendeur(permissions.BasePermission):
+    """
+    Permission : admin, ou vendeur (limité à sa boutique par le queryset de la vue)
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(user and user.is_authenticated and (user.est_admin or user.est_vendeur))
