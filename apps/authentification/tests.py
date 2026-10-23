@@ -228,3 +228,39 @@ class ParcoursVendeurTest(BaseParcoursTest):
         self.assertEqual(r.status_code, 404)
         self.client.credentials()
         self.assertEqual(self.client.get('/api/produits/').status_code, 200)
+
+
+class VerificationTelephoneCompatTest(BaseParcoursTest):
+    """Variante en un appel utilisée par le frontend (/api/auth/parcours/verifier-telephone/)."""
+
+    def envoyer(self, telephone):
+        r = self.client.post('/api/auth/otp/envoyer/', {'telephone': telephone}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        return r.data['debug_code']
+
+    def test_etudiant_en_un_appel_sans_commande(self):
+        code = self.envoyer('70 44 55 66')
+        r = self.client.post('/api/auth/parcours/verifier-telephone/', {
+            'telephone': '70445566', 'code': code, 'parcours': 'ETUDIANT', 'universite': self.univ.id,
+            'nom': 'Zongo', 'prenom': 'Rita', 'jour_naissance': 12, 'mois_naissance': 5,
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertTrue(r.data['nouveau_compte'])
+        self.assertTrue(r.data['user']['etat_parcours']['profil_etudiant_actif'])
+        self.assertEqual(Commande.objects.count(), 0)
+
+    def test_ancien_compte_avec_mot_de_passe_non_ouvert_par_otp(self):
+        Utilisateur.objects.create_user('old@ritoto.bf', 'Old12345!', nom='O', prenom='L', telephone='70 44 55 66')
+        code = self.envoyer('70445566')
+        r = self.client.post('/api/auth/parcours/verifier-telephone/',
+                             {'telephone': '70445566', 'code': code}, format='json')
+        self.assertEqual(r.status_code, 409)
+
+    def test_vendeur_se_reconnecte_par_telephone(self):
+        profil, _ = self.boutique_validee()
+        code = self.envoyer(profil.utilisateur.telephone)
+        r = self.client.post('/api/auth/parcours/verifier-telephone/',
+                             {'telephone': profil.utilisateur.telephone, 'code': code}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['user']['id'], profil.utilisateur_id)
+        self.assertEqual(r.data['user']['etat_parcours']['statut_boutique'], 'VALIDE')

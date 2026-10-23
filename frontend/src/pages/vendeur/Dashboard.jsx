@@ -33,8 +33,8 @@ export default function VendeurDashboard() {
   const user = useAuthStore((s) => s.user)
 
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
-    queryKey: ['vendeur-orders', 'EN_ATTENTE'],
-    queryFn: () => ordersApi.list({ statut: 'EN_ATTENTE', page_size: 50 }),
+    queryKey: ['vendeur-orders', 'VALIDEE'],
+    queryFn: () => ordersApi.list({ statut: 'VALIDEE', page_size: 50 }),
     refetchInterval: 15000,
   })
 
@@ -75,7 +75,7 @@ export default function VendeurDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={Clock} label="En attente" value={pending.length} color="orange" to="/vendeur/commandes" />
+          <StatCard icon={Clock} label="Nouvelles (payées)" value={pending.length} color="orange" to="/vendeur/commandes" />
           <StatCard icon={CheckCircle} label="Prêtes" value={ready.length} color="purple" to="/vendeur/commandes" />
           <StatCard icon={TrendingUp} label="CA aujourd'hui" value={`${todayCA.toLocaleString('fr-FR')} F`} color="green" />
           <StatCard

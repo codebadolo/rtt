@@ -55,14 +55,10 @@ function DetailModal({ livreur, isOpen, onClose, vendeurs }) {
           <div><p className="text-xs text-gray-400">Disponibilité</p><p className="font-medium text-gray-800">{livreur.en_service ? 'En service' : 'Hors service'}</p></div>
         </div>
 
-        {(livreur.photo_cnib || livreur.photo_visage) && (
+        {livreur.photo_visage && (
           <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Pièces justificatives</p>
-            <div className="grid grid-cols-2 gap-3">
-              {[{ src: livreur.photo_cnib, label: 'CNIB' }, { src: livreur.photo_visage, label: 'Visage' }].filter(d => d.src).map((d) => (
-                <img key={d.label} src={d.src} alt={d.label} className="w-full h-32 object-cover rounded-xl border border-gray-200 cursor-pointer" onClick={() => window.open(d.src, '_blank')} />
-              ))}
-            </div>
+            <p className="text-sm font-semibold text-gray-700 mb-2">Photo</p>
+            <img src={livreur.photo_visage} alt="Visage" className="w-32 h-32 object-cover rounded-xl border border-gray-200 cursor-pointer" onClick={() => window.open(livreur.photo_visage, '_blank')} />
           </div>
         )}
 

@@ -49,10 +49,10 @@ function Navbar() {
                 Connexion
               </Link>
               <Link
-                to="/inscription"
+                to="/campus"
                 className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-orange-600 transition-colors shadow-sm"
               >
-                S'inscrire
+                Commander
               </Link>
             </>
           )}
@@ -114,17 +114,17 @@ export default function Landing() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to="/inscription"
+                to="/campus"
                 className="inline-flex items-center gap-2 bg-orange-500 text-white px-6 py-3 rounded-2xl font-semibold text-base hover:bg-orange-600 transition-colors shadow-md shadow-orange-200"
               >
-                Créer un compte gratuit
+                Choisir mon université
                 <ArrowRight className="w-5 h-5" />
               </Link>
               <Link
-                to="/connexion"
+                to="/vendeur/inscription"
                 className="inline-flex items-center gap-2 border border-gray-200 text-gray-700 px-6 py-3 rounded-2xl font-semibold text-base hover:bg-gray-50 transition-colors"
               >
-                Se connecter
+                Devenir vendeur
               </Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-4">
@@ -225,7 +225,7 @@ export default function Landing() {
                 <p className="mt-2 text-gray-500">Frais préparés chaque jour</p>
               </div>
               <Link
-                to="/connexion"
+                to="/campus"
                 className="text-orange-500 hover:text-orange-600 font-semibold text-sm flex items-center gap-1"
               >
                 Voir tout <ArrowRight className="w-4 h-4" />
@@ -251,10 +251,10 @@ export default function Landing() {
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
-              to="/inscription"
+              to="/campus"
               className="bg-white text-orange-600 font-bold px-8 py-3.5 rounded-2xl hover:bg-orange-50 transition-colors shadow-lg"
             >
-              S'inscrire gratuitement
+              Commander maintenant
             </Link>
             <Link
               to="/connexion"

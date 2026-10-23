@@ -4,6 +4,18 @@ export const universitesApi = {
   list: () => client.get('/universites/').then((r) => r.data),
 }
 
+export const boutiquesApi = {
+  list: (params) => client.get('/boutiques/', { params }).then((r) => r.data),
+  get: (id) => client.get(`/boutiques/${id}/`).then((r) => r.data),
+}
+
+// Parcours progressif V1 : la vérification OTP authentifie le numéro,
+// elle ne crée ni ne valide aucune commande.
+export const parcoursApi = {
+  verifierTelephone: (data) =>
+    client.post('/auth/parcours/verifier-telephone/', data).then((r) => r.data),
+}
+
 export const otpApi = {
   envoyer: (telephone) =>
     client.post('/auth/otp/envoyer/', { telephone }).then((r) => r.data),
@@ -29,6 +41,9 @@ export const authApi = {
 
   getProfile: () =>
     client.get('/auth/profil/').then((r) => r.data),
+
+  updateProfile: (data) =>
+    client.patch('/auth/profil/', data).then((r) => r.data),
 
   changePassword: (data) =>
     client.post('/auth/changer-mot-de-passe/', data).then((r) => r.data),

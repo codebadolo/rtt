@@ -10,15 +10,23 @@ const useAuthStore = create((set, get) => ({
   setUser: (user) =>
     set({ user, isAuthenticated: !!user, isLoading: false }),
 
+  // Session ouverte par la vérification OTP du parcours progressif
+  setSession: (token, user) => {
+    setStoredToken(token)
+    set({ user, isAuthenticated: true, isLoading: false })
+  },
+
   login: async (credentials) => {
     const data = await authApi.login(credentials)
     setStoredToken(data.token)
-    const user = {
+    let user = {
       id: data.user_id,
       email: data.email,
       nom_complet: data.nom_complet,
       role: data.role,
     }
+    // Profil complet (état du parcours, statut boutique) pour les redirections
+    try { user = await authApi.getProfile() } catch (_) { /* profil minimal */ }
     set({ user, isAuthenticated: true, isLoading: false })
     return user
   },

@@ -6,6 +6,14 @@ const useCartStore = create(
     (set, get) => ({
       items: [],
 
+      // Un panier = un seul vendeur (une commande par boutique).
+      // Retourne false si le produit vient d'une autre boutique que le panier.
+      peutAjouter: (product) => {
+        const { items } = get()
+        if (items.length === 0) return true
+        return (items[0].product.vendeur ?? null) === (product.vendeur ?? null)
+      },
+
       addItem: (product, quantity = 1, variant = null, options = []) => {
         const { items } = get()
         const key = `${product.id}-${variant?.id ?? 'none'}-${options.map((o) => o.id).sort().join(',')}`
@@ -52,17 +60,6 @@ const useCartStore = create(
       },
 
       clearCart: () => set({ items: [] }),
-
-      get total() {
-        return get().items.reduce(
-          (sum, item) => sum + item.unitPrice * item.quantity,
-          0
-        )
-      },
-
-      get itemCount() {
-        return get().items.reduce((sum, item) => sum + item.quantity, 0)
-      },
     }),
     {
       name: 'ritoto-cart',

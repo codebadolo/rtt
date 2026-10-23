@@ -11,7 +11,7 @@ const ROLE_OPTIONS = [
   {
     value: 'ETUDIANT',
     label: 'Client étudiant',
-    desc: 'Commander des repas et produits',
+    desc: 'Choisissez votre campus et commandez — sans créer de compte à l\'avance',
     icon: Users,
     color: 'blue',
   },
@@ -25,14 +25,14 @@ const ROLE_OPTIONS = [
   {
     value: 'VENDEUR_INTERIEUR',
     label: 'Vendeur intérieur',
-    desc: 'Vendre depuis votre stand sur le campus',
+    desc: 'Inscription guidée, validée par l\'équipe Ritôtô',
     icon: Store,
     color: 'green',
   },
   {
     value: 'VENDEUR_EXTERIEUR',
     label: 'Vendeur extérieur',
-    desc: 'Vendre depuis votre commerce extérieur',
+    desc: 'Inscription guidée, validée par l\'équipe Ritôtô',
     icon: ShoppingBag,
     color: 'purple',
   },
@@ -206,7 +206,11 @@ export default function Register() {
                   })}
                 </div>
                 <button
-                  onClick={() => selectedRole && setStep(2)}
+                  onClick={() => {
+                    if (selectedRole === 'ETUDIANT') navigate('/campus')
+                    else if (selectedRole?.startsWith('VENDEUR')) navigate('/vendeur/inscription')
+                    else if (selectedRole) setStep(2)
+                  }}
                   disabled={!selectedRole}
                   className="w-full mt-6 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white font-bold py-3 rounded-2xl transition-colors flex items-center justify-center gap-2"
                 >
@@ -433,10 +437,10 @@ export default function Register() {
                     <>
                       <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                         <p className="font-semibold mb-1">Validation requise</p>
-                        <p className="text-xs text-amber-600">Votre compte doit être validé par un administrateur universitaire. Vous devrez fournir une photo de votre CNIB et une photo de votre visage.</p>
+                        <p className="text-xs text-amber-600">Votre compte doit être validé par un administrateur universitaire.</p>
                       </div>
                       <p className="text-xs text-gray-400">
-                        Vous pourrez uploader vos documents KYC depuis votre tableau de bord après inscription.
+                        Vous pourrez compléter votre profil depuis votre tableau de bord après inscription.
                       </p>
                     </>
                   )}

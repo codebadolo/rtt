@@ -9,7 +9,7 @@ import Modal from '../../components/Modal'
 import { ordersApi } from '../../api/orders'
 
 const TABS = [
-  { value: 'EN_ATTENTE',     label: 'En attente',      icon: Clock },
+  { value: 'VALIDEE',        label: 'Nouvelles (payées)', icon: Clock },
   { value: 'ACCEPTEE',       label: 'Acceptées',       icon: ThumbsUp },
   { value: 'EN_PREPARATION', label: 'En préparation',  icon: ChefHat },
   { value: 'PRETE',          label: 'Prêtes',          icon: Package },
@@ -32,7 +32,7 @@ function OrderModal({ order, onClose }) {
       toast.success('Commande acceptée — en cours de préparation')
       onClose()
     },
-    onError: (e) => toast.error(e.response?.data?.detail ?? 'Erreur'),
+    onError: (e) => toast.error(e.response?.data?.error ?? e.response?.data?.detail ?? 'Erreur'),
   })
 
   const readyMutation = useMutation({
@@ -42,7 +42,7 @@ function OrderModal({ order, onClose }) {
       toast.success('Commande marquée comme prête !')
       onClose()
     },
-    onError: (e) => toast.error(e.response?.data?.detail ?? 'Erreur'),
+    onError: (e) => toast.error(e.response?.data?.error ?? e.response?.data?.detail ?? 'Erreur'),
   })
 
   const prepMutation = useMutation({
@@ -125,7 +125,7 @@ function OrderModal({ order, onClose }) {
         )}
 
         {/* Actions */}
-        {order.statut === 'EN_ATTENTE' && (
+        {order.statut === 'VALIDEE' && (
           <div className="flex gap-3 pt-2">
             <button onClick={onClose}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 flex items-center justify-center gap-2">
@@ -163,7 +163,7 @@ function OrderModal({ order, onClose }) {
 }
 
 export default function VendeurOrders() {
-  const [activeTab, setActiveTab] = useState('EN_ATTENTE')
+  const [activeTab, setActiveTab] = useState('VALIDEE')
   const [selected, setSelected] = useState(null)
 
   const { data, isLoading } = useQuery({
@@ -204,17 +204,17 @@ export default function VendeurOrders() {
           <div className="space-y-3">
             {orders.map((order) => (
               <div key={order.id}
-                onClick={() => ['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? setSelected(order) : null}
+                onClick={() => ['VALIDEE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? setSelected(order) : null}
                 className={`bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex items-center gap-4 ${
-                  ['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+                  ['VALIDEE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
                 }`}>
                 <div className={`p-2.5 rounded-xl flex-shrink-0 ${
-                  order.statut === 'EN_ATTENTE' ? 'bg-yellow-100' :
+                  order.statut === 'VALIDEE' ? 'bg-yellow-100' :
                   order.statut === 'EN_PREPARATION' ? 'bg-orange-100' :
                   order.statut === 'PRETE' ? 'bg-purple-100' : 'bg-green-100'
                 }`}>
                   <Package className={`h-5 w-5 ${
-                    order.statut === 'EN_ATTENTE' ? 'text-yellow-600' :
+                    order.statut === 'VALIDEE' ? 'text-yellow-600' :
                     order.statut === 'EN_PREPARATION' ? 'text-orange-600' :
                     order.statut === 'PRETE' ? 'text-purple-600' : 'text-green-600'
                   }`} />
@@ -230,7 +230,7 @@ export default function VendeurOrders() {
                 <div className="text-right flex-shrink-0">
                   <p className="font-bold text-orange-500">{parseFloat(order.total_ttc ?? 0).toLocaleString('fr-FR')} F</p>
                   {order.heure_souhaitee && <p className="text-xs text-gray-400 mt-0.5">{order.heure_souhaitee}</p>}
-                  {['EN_ATTENTE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) && (
+                  {['VALIDEE', 'ACCEPTEE', 'EN_PREPARATION'].includes(order.statut) && (
                     <span className="text-xs text-orange-500 font-medium mt-1 block">Tap →</span>
                   )}
                 </div>

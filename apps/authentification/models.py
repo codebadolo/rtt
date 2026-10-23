@@ -272,6 +272,7 @@ class OTPVerification(models.Model):
 
     DUREE_VALIDITE_MINUTES = 10
     DELAI_RENVOI_SECONDES = 60
+    MAX_ENVOIS_PAR_HEURE = 5
     MAX_TENTATIVES = 5
 
     telephone = models.CharField('Numéro de téléphone', max_length=20, db_index=True)
@@ -312,6 +313,20 @@ class OTPVerification(models.Model):
             return 0
         ecoule = (timezone.now() - dernier.date_creation).total_seconds()
         return max(0, int(cls.DELAI_RENVOI_SECONDES - ecoule))
+
+    @classmethod
+    def peut_envoyer(cls, telephone):
+        """
+        Limite anti-abus : un envoi par minute, MAX_ENVOIS_PAR_HEURE par heure.
+        Retourne (autorise, message, delai_en_secondes).
+        """
+        delai = cls.delai_avant_renvoi(telephone)
+        if delai:
+            return False, f'Veuillez patienter {delai} s avant de redemander un code.', delai
+        depuis = timezone.now() - timezone.timedelta(hours=1)
+        if cls.objects.filter(telephone=telephone, date_creation__gte=depuis).count() >= cls.MAX_ENVOIS_PAR_HEURE:
+            return False, 'Trop de codes demandés pour ce numéro. Réessayez dans une heure.', 3600
+        return True, '', 0
 
     @classmethod
     def generer(cls, telephone):

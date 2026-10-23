@@ -13,16 +13,21 @@ import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
+import TelephoneLogin from './pages/auth/TelephoneLogin'
+
+// Parcours public (sans compte) — dossier V1
+import Campus from './pages/public/Campus'
+import Boutiques from './pages/public/Boutiques'
+import Boutique from './pages/public/Boutique'
+import Panier from './pages/public/Panier'
+import Checkout from './pages/checkout/Checkout'
 
 // Student pages
 import StudentDashboard from './pages/student/Dashboard'
-import StudentProducts from './pages/student/Products'
-import StudentCart from './pages/student/Cart'
 import StudentOrders from './pages/student/Orders'
 import StudentOrderDetail from './pages/student/OrderDetail'
 import StudentProfile from './pages/student/Profile'
 import StudentComplaints from './pages/student/Complaints'
-import StudentKYC from './pages/student/KYC'
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard'
@@ -61,6 +66,20 @@ import VendeurDashboard from './pages/vendeur/Dashboard'
 import VendeurOrders from './pages/vendeur/Orders'
 import VendeurWallet from './pages/vendeur/Wallet'
 import VendeurProfil from './pages/vendeur/Profil'
+import VendeurInscription from './pages/vendeur/Inscription'
+import VendeurProduits from './pages/vendeur/Produits'
+
+const ROLES_VENDEUR = ['VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR']
+
+// Une boutique n'est exploitable qu'après validation Ritôtô (dossier V1 §7) :
+// tant qu'elle ne l'est pas, le vendeur est ramené à son parcours d'inscription.
+function BoutiqueValideeRequise({ children }) {
+  const user = useAuthStore((s) => s.user)
+  if (ROLES_VENDEUR.includes(user?.role) && user?.etat_parcours?.statut_boutique !== 'VALIDE') {
+    return <Navigate to="/vendeur/inscription" replace />
+  }
+  return children
+}
 
 function RootRedirect() {
   const { isAuthenticated, isLoading, user } = useAuthStore()
@@ -120,6 +139,17 @@ export default function App() {
       <Route path="/inscription" element={<Register />} />
       <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
       <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
+      <Route path="/connexion-telephone" element={<TelephoneLogin />} />
+
+      {/* Parcours étudiant sans compte : université → boutiques → produits → panier → commande */}
+      <Route path="/campus" element={<Campus />} />
+      <Route path="/campus/:universiteId" element={<Boutiques />} />
+      <Route path="/campus/:universiteId/boutiques/:boutiqueId" element={<Boutique />} />
+      <Route path="/panier" element={<Panier />} />
+      <Route path="/commande" element={<Checkout />} />
+
+      {/* Parcours vendeur progressif */}
+      <Route path="/vendeur/inscription" element={<VendeurInscription />} />
 
       {/* Student */}
       <Route
@@ -128,12 +158,11 @@ export default function App() {
           <ProtectedRoute allowedRoles={['ETUDIANT', 'ADMIN']}>
             <Routes>
               <Route path="/" element={<StudentDashboard />} />
-              <Route path="/produits" element={<StudentProducts />} />
-              <Route path="/panier" element={<StudentCart />} />
+              <Route path="/produits" element={<Navigate to="/campus" replace />} />
+              <Route path="/panier" element={<Navigate to="/panier" replace />} />
               <Route path="/commandes" element={<StudentOrders />} />
               <Route path="/commandes/:id" element={<StudentOrderDetail />} />
               <Route path="/plaintes" element={<StudentComplaints />} />
-              <Route path="/kyc" element={<StudentKYC />} />
               <Route path="/profil" element={<StudentProfile />} />
             </Routes>
           </ProtectedRoute>
@@ -207,15 +236,17 @@ export default function App() {
         path="/vendeur/*"
         element={
           <ProtectedRoute allowedRoles={['VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR', 'ADMIN']}>
+            <BoutiqueValideeRequise>
             <Routes>
               <Route path="/" element={<VendeurDashboard />} />
               <Route path="/commandes" element={<VendeurOrders />} />
               <Route path="/wallet" element={<VendeurWallet />} />
-              <Route path="/produits" element={<AdminProducts />} />
+              <Route path="/produits" element={<VendeurProduits />} />
               <Route path="/plaintes" element={<StudentComplaints />} />
               <Route path="/profil" element={<VendeurProfil />} />
               <Route path="/compte" element={<StudentProfile />} />
             </Routes>
+            </BoutiqueValideeRequise>
           </ProtectedRoute>
         }
       />

@@ -39,9 +39,11 @@ class LigneCommandeCreateSerializer(serializers.Serializer):
     prix_unitaire = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
     def validate(self, data):
-        if not data.get('prix_unitaire'):
-            variante = data.get('variante')
-            data['prix_unitaire'] = variante.prix if variante else data['produit'].prix_base
+        # Prix toujours recalculé côté serveur : la valeur envoyée par le client est ignorée.
+        variante = data.get('variante')
+        if variante and variante.produit_id != data['produit'].id:
+            raise serializers.ValidationError({'variante': 'Variante invalide pour ce produit.'})
+        data['prix_unitaire'] = variante.prix_total if variante else data['produit'].prix_base
         return data
 
 

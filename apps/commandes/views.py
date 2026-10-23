@@ -291,36 +291,42 @@ class CommandeViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Éviter les doubles charges
-        if hasattr(commande, 'paiement_senfenico'):
-            p = commande.paiement_senfenico
-            return Response({
-                'charge_reference': p.charge_reference,
-                'statut': p.statut,
-                'display_text': p.display_text,
-            })
+        # Verrou sur la commande : deux demandes simultanées (double clic,
+        # onglet dupliqué…) ne doivent jamais créer deux charges.
+        with transaction.atomic():
+            Commande.objects.select_for_update().filter(pk=commande.pk).first()
 
-        try:
-            data = creer_charge(
-                montant=int(commande.total_ttc),
-                telephone=commande.telephone_paiement,
-                methode_paiement=commande.methode_paiement,
-            )
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error("Senfenico charge error for commande %s: %s", commande.pk, e)
-            return Response(
-                {'error': 'Erreur lors de l\'initiation du paiement. Réessayez.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            # Une charge échouée peut être relancée ; sinon on renvoie la charge existante
+            PaiementSenfenico.objects.filter(commande=commande, statut='failed').delete()
+            p = PaiementSenfenico.objects.filter(commande=commande).first()
+            if p:
+                return Response({
+                    'charge_reference': p.charge_reference,
+                    'statut': p.statut,
+                    'display_text': p.display_text,
+                })
 
-        PaiementSenfenico.objects.create(
-            commande=commande,
-            charge_reference=data['reference'],
-            statut=data['status'],
-            display_text=data.get('display_text', ''),
-        )
+            try:
+                data = creer_charge(
+                    montant=int(commande.total_ttc),
+                    telephone=commande.telephone_paiement,
+                    methode_paiement=commande.methode_paiement,
+                )
+            except ValueError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                logger.error("Senfenico charge error for commande %s: %s", commande.pk, e)
+                return Response(
+                    {'error': 'Erreur lors de l\'initiation du paiement. Réessayez.'},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            PaiementSenfenico.objects.create(
+                commande=commande,
+                charge_reference=data['reference'],
+                statut=data['status'],
+                display_text=data.get('display_text', ''),
+            )
 
         return Response({
             'charge_reference': data['reference'],

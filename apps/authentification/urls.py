@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     AuthViewSet, UtilisateurViewSet, DossierKYCViewSet, ParcoursIdentificationViewSet,
-    otp_envoyer_view, otp_verifier_view,
+    otp_envoyer_view, otp_verifier_view, parcours_verifier_telephone_view,
 )
 
 router = DefaultRouter()
@@ -15,4 +15,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('auth/otp/envoyer/', otp_envoyer_view, name='otp-envoyer'),
     path('auth/otp/verifier/', otp_verifier_view, name='otp-verifier'),
+    path('auth/parcours/verifier-telephone/', parcours_verifier_telephone_view, name='parcours-verifier-telephone'),
 ]

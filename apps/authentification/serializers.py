@@ -196,12 +196,15 @@ class UtilisateurDetailSerializer(serializers.ModelSerializer):
     peut_commander = serializers.SerializerMethodField()
     infos_personnelles_renseignees = serializers.BooleanField(read_only=True)
     profil_etudiant_actif = serializers.BooleanField(read_only=True)
+    universite_nom = serializers.CharField(source='universite.nom', read_only=True, default=None)
+    etat_parcours = serializers.SerializerMethodField()
 
     class Meta:
         model = Utilisateur
         fields = [
             'id', 'email', 'nom', 'prenom', 'nom_complet',
-            'telephone', 'telephone_verifie', 'role', 'universite',
+            'telephone', 'telephone_verifie', 'role', 'universite', 'universite_nom',
+            'etat_parcours',
             'est_actif', 'peut_commander',
             'infos_personnelles_renseignees', 'profil_etudiant_actif',
             'jour_naissance', 'mois_naissance',
@@ -218,6 +221,17 @@ class UtilisateurDetailSerializer(serializers.ModelSerializer):
 
     def get_peut_commander(self, obj):
         return obj.profil_etudiant_actif
+
+    def get_etat_parcours(self, obj):
+        """États du parcours progressif (§9 du dossier V1)."""
+        profil = getattr(obj, 'profil_vendeur', None) if obj.est_vendeur else None
+        return {
+            'infos_personnelles_renseignees': bool((obj.nom or '').strip() and (obj.prenom or '').strip()),
+            'date_naissance_renseignee': bool(obj.jour_naissance and obj.mois_naissance),
+            'telephone_verifie': obj.telephone_verifie,
+            'profil_etudiant_actif': obj.profil_etudiant_actif,
+            'statut_boutique': profil.statut_validation if profil else None,
+        }
 
     def validate(self, data):
         jour = data.get('jour_naissance', getattr(self.instance, 'jour_naissance', None))
@@ -344,24 +358,36 @@ class ReinitialisationMotDePasseSerializer(serializers.Serializer):
 
 # ──────────────────── SERIALIZER OTP INSCRIPTION ────────────────────
 class OTPEnvoyerSerializer(serializers.Serializer):
-    """Envoi du code OTP (WhatsApp puis repli SMS) à l'inscription (§3.1)."""
-    telephone = serializers.CharField(required=True, max_length=20)
+    """Envoi du code OTP par SMS pour vérifier un numéro de téléphone."""
+    telephone = serializers.CharField(required=True, max_length=25)
+
+    def validate_telephone(self, value):
+        telephone = normaliser_telephone(value)
+        if not telephone:
+            raise serializers.ValidationError('Numéro de téléphone invalide.')
+        return telephone
 
     def save(self):
         from .otp_sender import envoyer_code_otp, EnvoiOTPNonConfigure
 
         telephone = self.validated_data['telephone']
+        autorise, message, _ = OTPVerification.peut_envoyer(telephone)
+        if not autorise:
+            raise serializers.ValidationError({'detail': message})
         otp = OTPVerification.generer(telephone)
         try:
             resultat = envoyer_code_otp(telephone, otp.code)
         except EnvoiOTPNonConfigure as e:
             raise serializers.ValidationError({'detail': str(e)})
-        return resultat
+        return {'telephone': telephone, **resultat}
 
 
 class OTPVerifierSerializer(serializers.Serializer):
-    telephone = serializers.CharField(required=True, max_length=20)
+    telephone = serializers.CharField(required=True, max_length=25)
     code = serializers.CharField(required=True, max_length=6)
+
+    def validate_telephone(self, value):
+        return normaliser_telephone(value) or value
 
     def validate(self, data):
         if not OTPVerification.verifier(data['telephone'], data['code']):
@@ -472,6 +498,34 @@ class ParcoursTelephoneSerializer(serializers.Serializer):
 
 class ParcoursOTPSerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6, min_length=4)
+
+
+class VerificationTelephoneSerializer(serializers.Serializer):
+    """
+    Variante « en un appel » du parcours (utilisée par le frontend) : les
+    niveaux saisis côté client sont transmis avec le code OTP. Traitée par
+    la même logique que /api/parcours/ (voir rattacher_compte).
+    """
+    telephone = serializers.CharField(max_length=25)
+    code = serializers.CharField(max_length=6)
+    parcours = serializers.ChoiceField(choices=ParcoursIdentification.Type.choices, default='ETUDIANT')
+    nom = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    prenom = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    jour_naissance = serializers.IntegerField(required=False, allow_null=True)
+    mois_naissance = serializers.IntegerField(required=False, allow_null=True)
+    universite = serializers.PrimaryKeyRelatedField(
+        queryset=Universite.objects.filter(est_actif=True), required=False, allow_null=True,
+    )
+
+    def validate_telephone(self, value):
+        telephone = normaliser_telephone(value)
+        if not telephone:
+            raise serializers.ValidationError('Numéro de téléphone invalide.')
+        return telephone
+
+    def validate(self, data):
+        valider_jour_mois(data.get('jour_naissance'), data.get('mois_naissance'))
+        return data
 
 
 # ──────────────────── SERIALIZER KYC (carte étudiant) ────────────────────

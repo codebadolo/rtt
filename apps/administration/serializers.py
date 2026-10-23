@@ -245,8 +245,10 @@ class ProduitListSerializer(serializers.ModelSerializer):
         model = Produit
         fields = [
             'id', 'nom', 'description', 'categorie', 'categorie_display',
-            'prix_base', 'image', 'image_url', 'en_stock', 'est_actif', 'vendeur'
+            'prix_base', 'image', 'image_url', 'en_stock', 'est_actif', 'vendeur', 'vendeur_nom'
         ]
+
+    vendeur_nom = serializers.CharField(source='vendeur.nom_boutique', read_only=True, default=None)
     
     def get_image_url(self, obj):
         if obj.image:
@@ -268,10 +270,12 @@ class ProduitDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'nom', 'description', 'categorie', 'prix_base',
             'image', 'image_url', 'stock_limite', 'quantite_stock',
-            'en_stock', 'variantes', 'options', 'est_actif', 'vendeur',
+            'en_stock', 'variantes', 'options', 'est_actif', 'vendeur', 'vendeur_nom',
             'cree_par', 'cree_par_nom', 'date_creation', 'date_modification'
         ]
         read_only_fields = ['id', 'date_creation', 'date_modification', 'cree_par', 'vendeur']
+
+    vendeur_nom = serializers.CharField(source='vendeur.nom_boutique', read_only=True, default=None)
     
     def get_image_url(self, obj):
         if obj.image:
@@ -457,20 +461,28 @@ class ProfilVendeurSerializer(serializers.ModelSerializer):
     utilisateur_nom = serializers.SerializerMethodField()
     utilisateur_email = serializers.CharField(source='utilisateur.email', read_only=True)
     utilisateur_telephone = serializers.CharField(source='utilisateur.telephone', read_only=True)
+    telephone_verifie = serializers.BooleanField(source='utilisateur.telephone_verifie', read_only=True)
     note_moyenne = serializers.FloatField(read_only=True)
     statut_validation_display = serializers.CharField(source='get_statut_validation_display', read_only=True)
+    categorie_display = serializers.CharField(source='get_categorie_principale_display', read_only=True)
+    emplacement_nom = serializers.CharField(source='emplacement.nom', read_only=True, default=None)
+    universite_nom = serializers.CharField(source='universite.nom', read_only=True, default=None)
     boutique_active = serializers.BooleanField(read_only=True)
+    peut_soumettre = serializers.SerializerMethodField()
+    nb_produits = serializers.SerializerMethodField()
     etapes = serializers.SerializerMethodField()
 
     class Meta:
         model = ProfilVendeur
         fields = [
             'id', 'utilisateur', 'utilisateur_nom', 'utilisateur_email', 'utilisateur_telephone',
-            'universite',
-            'nom_boutique', 'description', 'categorie_principale', 'emplacement', 'photo_boutique',
+            'telephone_verifie', 'universite', 'universite_nom',
+            'nom_boutique', 'description', 'categorie_principale', 'categorie_display',
+            'emplacement', 'emplacement_nom', 'photo_boutique',
             'mode_livraison', 'capacite_max_commandes',
             'photo_visage', 'adresse_commerce', 'horaires_disponibilite',
-            'statut_validation', 'statut_validation_display', 'boutique_active', 'etapes',
+            'statut_validation', 'statut_validation_display', 'boutique_active', 'peut_soumettre',
+            'nb_produits', 'etapes',
             'est_valide', 'motif_rejet', 'est_actif', 'note_moyenne',
             'date_soumission', 'date_validation', 'date_creation', 'date_modification',
         ]
@@ -485,19 +497,28 @@ class ProfilVendeurSerializer(serializers.ModelSerializer):
     def get_etapes(self, obj):
         return obj.etapes()
 
+    def get_peut_soumettre(self, obj):
+        S = ProfilVendeur.StatutValidation
+        return obj.statut_validation in (S.BROUILLON, S.CORRECTION)
+
+    def get_nb_produits(self, obj):
+        return obj.produits.count()
+
 
 class BoutiquePubliqueSerializer(serializers.ModelSerializer):
     """Fiche boutique visible sans compte (parcours étudiant : université → vendeurs)."""
     categorie_principale_display = serializers.CharField(source='get_categorie_principale_display', read_only=True)
+    categorie_display = serializers.CharField(source='get_categorie_principale_display', read_only=True)
     emplacement_nom = serializers.CharField(source='emplacement.nom', read_only=True, default=None)
     note_moyenne = serializers.FloatField(read_only=True)
+    nb_produits = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = ProfilVendeur
         fields = [
             'id', 'nom_boutique', 'description', 'categorie_principale', 'categorie_principale_display',
-            'universite', 'emplacement', 'emplacement_nom', 'adresse_commerce', 'photo_boutique',
-            'mode_livraison', 'horaires_disponibilite', 'note_moyenne',
+            'categorie_display', 'universite', 'emplacement', 'emplacement_nom', 'adresse_commerce',
+            'photo_boutique', 'mode_livraison', 'horaires_disponibilite', 'note_moyenne', 'nb_produits',
         ]
 
 

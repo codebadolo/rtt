@@ -255,13 +255,19 @@ export default function StudentOrderDetail() {
   const otpMutation = useMutation({
     mutationFn: () => paymentsApi.soumettreOtp(id, otpCode),
     onSuccess: () => {
-      toast.success('Paiement confirmé ! Commande validée.')
+      toast.success('Paiement confirmé — commande confirmée.')
       setOtpCode('')
       queryClient.invalidateQueries({ queryKey: ['order', id] })
     },
     onError: (err) => {
       toast.error(err.response?.data?.error ?? 'Code OTP invalide, réessayez.')
     },
+  })
+
+  const payerMutation = useMutation({
+    mutationFn: () => paymentsApi.initierPaiement(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', id] }),
+    onError: (err) => toast.error(err.response?.data?.error ?? "Erreur lors de l'initiation du paiement"),
   })
 
   const cancelMutation = useMutation({
@@ -301,7 +307,9 @@ export default function StudentOrderDetail() {
   const canPrint    = ['VALIDEE', 'PRETE', 'DISTRIBUEE'].includes(order.statut)
   const canShowQR   = ['VALIDEE', 'PRETE'].includes(order.statut)
   const paiement    = order.paiement_senfenico
-  const canSaisirOtp = order.statut === 'EN_ATTENTE' && paiement?.statut === 'send_otp'
+  const enAttentePaiement = ['BROUILLON', 'EN_ATTENTE'].includes(order.statut)
+  const canSaisirOtp = enAttentePaiement && paiement?.statut === 'send_otp'
+  const peutPayer = enAttentePaiement && (!paiement || paiement.statut === 'failed')
   const methode     = METHODE_CFG[order.methode_paiement]
   const totalHT      = parseFloat(order.total_ht     || 0)
   const fraisService = parseFloat(order.frais_service || 0)
@@ -449,6 +457,24 @@ export default function StudentOrderDetail() {
           )}
         </div>
 
+        {/* Commande non payée : elle n'est confirmée qu'après paiement */}
+        {peutPayer && (
+          <div className="border-2 border-amber-300 bg-amber-50 rounded-2xl p-5 space-y-3">
+            <p className="font-bold text-amber-800">En attente de paiement</p>
+            <p className="text-sm text-amber-700">
+              Cette commande n'est pas encore confirmée : elle le sera dès que le paiement aura réussi.
+            </p>
+            <button
+              onClick={() => payerMutation.mutate()}
+              disabled={payerMutation.isPending}
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold disabled:opacity-50"
+            >
+              {payerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
+              {paiement?.statut === 'failed' ? 'Réessayer le paiement' : `Payer ${parseFloat(order.total_ttc).toLocaleString('fr-FR')} FCFA`}
+            </button>
+          </div>
+        )}
+
         {/* Section paiement Senfenico */}
         {paiement && (() => {
           const cfg  = PAY_STATUS[paiement.statut] ?? PAY_STATUS.pending
@@ -476,7 +502,7 @@ export default function StudentOrderDetail() {
 
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-blue-800">
-                    Entrez le code OTP reçu par SMS *
+                    Code de paiement Orange Money *
                   </label>
                   <input
                     type="text"

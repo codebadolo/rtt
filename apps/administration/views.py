@@ -266,10 +266,15 @@ class ProduitViewSet(viewsets.ModelViewSet):
             return queryset
         # Catalogue public : produits des boutiques validées et actives
         # (+ catalogue historique non rattaché à un vendeur)
-        visible = Q(vendeur__isnull=True) | Q(
+        visible = Q(est_actif=True) & (Q(vendeur__isnull=True) | Q(
             vendeur__statut_validation=ProfilVendeur.StatutValidation.VALIDE,
             vendeur__est_actif=True,
-        )
+        ))
+        universite = self.request.query_params.get('universite')
+        if universite:
+            queryset = queryset.filter(
+                Q(vendeur__universite=universite) | Q(vendeur__emplacement__universite=universite)
+            )
         profil = getattr(user, 'profil_vendeur', None) if user.is_authenticated else None
         if profil:
             # Le vendeur gère son catalogue avant même la validation (niveau 4)
@@ -286,6 +291,16 @@ class ProduitViewSet(viewsets.ModelViewSet):
         else:
             serializer.save(cree_par=user, vendeur=user.profil_vendeur)
     
+    def destroy(self, request, *args, **kwargs):
+        from django.db.models import ProtectedError
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {'detail': 'Ce produit figure dans des commandes : désactivez-le plutôt que de le supprimer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
     @action(detail=False, methods=['get'], url_path='par-categorie')
     def par_categorie(self, request):
         """
@@ -360,14 +375,20 @@ class BoutiqueViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BoutiquePubliqueSerializer
     permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['universite', 'categorie_principale', 'emplacement']
+    filterset_fields = ['categorie_principale', 'emplacement']
     search_fields = ['nom_boutique', 'description']
 
     def get_queryset(self):
-        return ProfilVendeur.objects.filter(
+        qs = ProfilVendeur.objects.filter(
             statut_validation=ProfilVendeur.StatutValidation.VALIDE,
-            est_actif=True,
-        ).select_related('emplacement').order_by('nom_boutique')
+            est_actif=True, utilisateur__est_actif=True,
+        ).select_related('emplacement').annotate(
+            nb_produits=Count('produits', filter=Q(produits__est_actif=True)),
+        ).order_by('nom_boutique')
+        universite = self.request.query_params.get('universite')
+        if universite:
+            qs = qs.filter(Q(universite=universite) | Q(emplacement__universite=universite))
+        return qs
 
     @action(detail=True, methods=['get'], url_path='produits')
     def produits(self, request, pk=None):
@@ -854,6 +875,9 @@ def profil_vendeur_view(request):
     if request.method == 'POST':
         if profil:
             return Response({'error': 'Vous avez déjà une boutique'}, status=status.HTTP_400_BAD_REQUEST)
+        if not request.user.telephone_verifie:
+            return Response({'error': "Vérifiez d'abord votre numéro de téléphone."},
+                            status=status.HTTP_400_BAD_REQUEST)
         serializer = ProfilVendeurSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # Vendeurs déjà connus du pilote : activation immédiate décidée par l'admin
@@ -948,6 +972,12 @@ class AdminVendeurViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
         profil.demander_correction(request.user, motif)
         return Response(ProfilVendeurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['get'], url_path='produits')
+    def produits(self, request, pk=None):
+        """Catalogue soumis par le vendeur, pour vérification."""
+        profil = self.get_object()
+        return Response(ProduitListSerializer(profil.produits.all(), many=True).data)
 
     @action(detail=True, methods=['post'], url_path='rejeter')
     def rejeter(self, request, pk=None):

@@ -19,7 +19,7 @@ from .serializers import (
     ReinitialisationMotDePasseSerializer,
     OTPEnvoyerSerializer, OTPVerifierSerializer, DossierKYCSerializer,
     ParcoursIdentificationSerializer, ParcoursDemarrerSerializer, ParcoursInfosSerializer,
-    ParcoursTelephoneSerializer, ParcoursOTPSerializer,
+    ParcoursTelephoneSerializer, ParcoursOTPSerializer, VerificationTelephoneSerializer,
 )
 from .permissions import (
     EstAuthentifie, EstAdmin, EstEtudiant,
@@ -111,10 +111,19 @@ class AuthViewSet(viewsets.GenericViewSet):
             logger.info(f"Déconnexion: {email}")
         return Response({'message': 'Déconnexion réussie'})
     
-    @action(detail=False, methods=['get'], url_path='profil')
+    @action(detail=False, methods=['get', 'patch'], url_path='profil')
     def profil(self, request):
         if not request.user.is_authenticated:
             return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+        if request.method == 'PATCH':
+            # Niveaux du parcours : nom/prénom, jour/mois de naissance, université.
+            # Le téléphone ne se modifie que via la vérification OTP.
+            champs = ('nom', 'prenom', 'jour_naissance', 'mois_naissance', 'universite', 'adresse')
+            data = {k: v for k, v in request.data.items() if k in champs}
+            serializer = self.get_serializer(request.user, data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
         serializer = self.get_serializer(request.user)
         return Response(serializer.data)
     
@@ -476,8 +485,6 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
     lookup_field = 'token'
     lookup_value_regex = '[0-9a-fA-F-]{36}'
 
-    ROLES_VENDEUR = (Utilisateur.Role.VENDEUR_INTERIEUR, Utilisateur.Role.VENDEUR_EXTERIEUR)
-
     def get_object(self):
         try:
             parcours = ParcoursIdentification.objects.select_related('utilisateur').get(
@@ -494,11 +501,6 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
     def _etat(self, parcours, status_code=status.HTTP_200_OK):
         return Response(ParcoursIdentificationSerializer(parcours).data, status=status_code)
 
-    def _role_compatible(self, parcours, user):
-        if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT:
-            return user.role == Utilisateur.Role.ETUDIANT
-        return user.role in self.ROLES_VENDEUR or user.role == Utilisateur.Role.ETUDIANT
-
     def create(self, request):
         serializer = ParcoursDemarrerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -506,7 +508,7 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
         user = request.user
         if user.is_authenticated:
             # Compte existant (ex. ancien compte email) : on reprend ses informations
-            if not self._role_compatible(parcours, user):
+            if not role_compatible(parcours, user):
                 return Response(
                     {'error': "Ce parcours n'est pas disponible pour votre type de compte."},
                     status=status.HTTP_403_FORBIDDEN,
@@ -538,12 +540,10 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         telephone = serializer.validated_data['telephone']
 
-        delai = OTPVerification.delai_avant_renvoi(telephone)
-        if delai:
-            return Response(
-                {'error': f'Veuillez patienter {delai} s avant de redemander un code.', 'delai_renvoi': delai},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
+        autorise, message, delai = OTPVerification.peut_envoyer(telephone)
+        if not autorise:
+            return Response({'error': message, 'delai_renvoi': delai},
+                            status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         otp = OTPVerification.generer(telephone)
         try:
@@ -574,7 +574,7 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
 
         try:
             with transaction.atomic():
-                user, erreur = self._rattacher_compte(parcours)
+                user, erreur = rattacher_compte(parcours)
                 if erreur:
                     transaction.set_rollback(True)
                     return erreur
@@ -601,72 +601,155 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
             'parcours': ParcoursIdentificationSerializer(parcours).data,
         })
 
-    def _rattacher_compte(self, parcours):
-        """
-        Retrouve ou crée le compte correspondant au numéro vérifié, y reporte
-        les informations du parcours sans écraser celles déjà enregistrées.
-        Retourne (utilisateur, None) ou (None, Response d'erreur).
-        """
-        telephone = parcours.telephone
-        existant = Utilisateur.objects.select_for_update().filter(
-            telephone=telephone, telephone_verifie=True,
-        ).first()
 
-        if parcours.utilisateur_id:
-            user = parcours.utilisateur
-            if existant and existant.pk != user.pk:
-                return None, Response({'error': 'Ce numéro est déjà associé à un autre compte.'},
-                                      status=status.HTTP_409_CONFLICT)
-        elif existant:
-            user = existant
-        else:
-            user = Utilisateur.objects.create_user(
-                email=None,
-                telephone=telephone,
-                nom=parcours.nom,
-                prenom=parcours.prenom,
-                role=(Utilisateur.Role.ETUDIANT
-                      if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT
-                      else Utilisateur.Role.VENDEUR_INTERIEUR),
-                universite=parcours.universite,
-            )
+ROLES_VENDEUR = (Utilisateur.Role.VENDEUR_INTERIEUR, Utilisateur.Role.VENDEUR_EXTERIEUR)
 
-        if not user.est_actif:
-            return None, Response({'error': 'Ce compte est désactivé.'}, status=status.HTTP_403_FORBIDDEN)
-        if not self._role_compatible(parcours, user):
-            return None, Response(
-                {'error': 'Ce numéro est associé à un autre type de compte. Connectez-vous avec ce compte.'},
-                status=status.HTTP_409_CONFLICT,
-            )
 
-        # Report des informations du parcours (champs encore vides uniquement)
-        champs = []
-        for champ in ('nom', 'prenom', 'jour_naissance', 'mois_naissance'):
-            valeur = getattr(parcours, champ)
-            if valeur and not getattr(user, champ):
-                setattr(user, champ, valeur)
-                champs.append(champ)
-        if parcours.universite_id and user.universite_id != parcours.universite_id \
-                and (user.est_etudiant or not user.universite_id):
-            user.universite = parcours.universite
-            champs.append('universite')
-        if parcours.type_parcours == ParcoursIdentification.Type.VENDEUR and user.est_etudiant:
-            user.role = Utilisateur.Role.VENDEUR_INTERIEUR
-            champs.append('role')
-        if champs:
-            user.save(update_fields=champs)
-        user.marquer_telephone_verifie(telephone)
+def role_compatible(parcours, user):
+    if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT:
+        return user.role == Utilisateur.Role.ETUDIANT
+    return user.role in ROLES_VENDEUR or user.role == Utilisateur.Role.ETUDIANT
 
-        if parcours.type_parcours == ParcoursIdentification.Type.VENDEUR:
-            from apps.administration.models import ProfilVendeur
-            ProfilVendeur.objects.get_or_create(
-                utilisateur=user,
-                defaults={'universite': parcours.universite, 'nom_boutique': ''},
-            )
 
-        parcours.utilisateur = user
-        parcours.save(update_fields=['utilisateur', 'date_modification'])
-        return user, None
+def rattacher_compte(parcours, creer_profil_vendeur=True):
+    """
+    Retrouve ou crée le compte correspondant au numéro vérifié, y reporte
+    les informations du parcours sans écraser celles déjà enregistrées.
+    Retourne (utilisateur, None) ou (None, Response d'erreur).
+    """
+    from .telephone import trouver_utilisateur_par_telephone
+
+    telephone = parcours.telephone
+    existant = Utilisateur.objects.select_for_update().filter(
+        telephone=telephone, telephone_verifie=True,
+    ).first()
+
+    if parcours.utilisateur_id:
+        user = parcours.utilisateur
+        if existant and existant.pk != user.pk:
+            return None, Response({'error': 'Ce numéro est déjà associé à un autre compte.'},
+                                  status=status.HTTP_409_CONFLICT)
+    elif existant:
+        user = existant
+    else:
+        # Compte créé avant la V1 avec ce numéro, jamais vérifié : on ne
+        # l'ouvre pas sur simple OTP (le numéro saisi a pu être erroné).
+        ancien = trouver_utilisateur_par_telephone(telephone)
+        if ancien and ancien.has_usable_password():
+            return None, Response({'error': (
+                'Un compte existe déjà avec ce numéro. Connectez-vous avec votre email '
+                'et mot de passe, puis vérifiez votre numéro depuis votre profil.'
+            )}, status=status.HTTP_409_CONFLICT)
+        user = Utilisateur.objects.create_user(
+            email=None,
+            telephone=telephone,
+            nom=parcours.nom,
+            prenom=parcours.prenom,
+            role=(Utilisateur.Role.ETUDIANT
+                  if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT
+                  else Utilisateur.Role.VENDEUR_INTERIEUR),
+            universite=parcours.universite,
+        )
+
+    if not user.est_actif:
+        return None, Response({'error': 'Ce compte est désactivé.'}, status=status.HTTP_403_FORBIDDEN)
+    if not role_compatible(parcours, user):
+        return None, Response(
+            {'error': 'Ce numéro est associé à un autre type de compte. Connectez-vous avec ce compte.'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    # Report des informations du parcours (champs encore vides uniquement)
+    champs = []
+    for champ in ('nom', 'prenom', 'jour_naissance', 'mois_naissance'):
+        valeur = getattr(parcours, champ)
+        if valeur and not getattr(user, champ):
+            setattr(user, champ, valeur)
+            champs.append(champ)
+    if parcours.universite_id and user.universite_id != parcours.universite_id \
+            and (user.est_etudiant or not user.universite_id):
+        user.universite = parcours.universite
+        champs.append('universite')
+    if parcours.type_parcours == ParcoursIdentification.Type.VENDEUR and user.est_etudiant:
+        user.role = Utilisateur.Role.VENDEUR_INTERIEUR
+        champs.append('role')
+    if champs:
+        user.save(update_fields=champs)
+    user.marquer_telephone_verifie(telephone)
+
+    if creer_profil_vendeur and parcours.type_parcours == ParcoursIdentification.Type.VENDEUR:
+        from apps.administration.models import ProfilVendeur
+        ProfilVendeur.objects.get_or_create(
+            utilisateur=user,
+            defaults={'universite': parcours.universite, 'nom_boutique': ''},
+        )
+
+    parcours.utilisateur = user
+    parcours.save(update_fields=['utilisateur', 'date_modification'])
+    return user, None
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def parcours_verifier_telephone_view(request):
+    """
+    POST /api/auth/parcours/verifier-telephone/
+
+    Variante en un appel du parcours /api/parcours/ : le client envoie les
+    niveaux déjà saisis (nom, prénom, jour/mois, université) avec le code
+    OTP reçu via /api/auth/otp/envoyer/. Même logique de rattachement ; la
+    boutique du vendeur est créée ensuite par POST /api/profil/vendeur/.
+    Ne crée ni ne valide aucune commande.
+    """
+    serializer = VerificationTelephoneSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+
+    if not OTPVerification.verifier(data['telephone'], data['code']):
+        return Response({'code': ['Code invalide ou expiré.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    parcours = ParcoursIdentification(
+        type_parcours=data['parcours'], telephone=data['telephone'],
+        universite=data.get('universite'),
+        nom=(data.get('nom') or '').strip(), prenom=(data.get('prenom') or '').strip(),
+        jour_naissance=data.get('jour_naissance'), mois_naissance=data.get('mois_naissance'),
+    )
+    if request.user.is_authenticated:
+        parcours.utilisateur = request.user
+    else:
+        # Connexion par téléphone d'un vendeur déjà inscrit
+        existant = Utilisateur.objects.filter(telephone=data['telephone'], telephone_verifie=True).first()
+        if existant and existant.role in ROLES_VENDEUR:
+            parcours.type_parcours = ParcoursIdentification.Type.VENDEUR
+    parcours.save()
+
+    nouveau = not Utilisateur.objects.filter(telephone=data['telephone'], telephone_verifie=True).exists() \
+        and parcours.utilisateur_id is None
+    try:
+        with transaction.atomic():
+            user, erreur = rattacher_compte(parcours, creer_profil_vendeur=False)
+            if erreur:
+                transaction.set_rollback(True)
+                return erreur
+    except IntegrityError:
+        return Response({'error': 'Ce numéro est déjà associé à un autre compte.'},
+                        status=status.HTTP_409_CONFLICT)
+
+    # Les niveaux ressaisis par le client mettent à jour le compte
+    champs = [c for c in ('nom', 'prenom', 'jour_naissance', 'mois_naissance')
+              if getattr(parcours, c) not in (None, '') and getattr(user, c) != getattr(parcours, c)]
+    for c in champs:
+        setattr(user, c, getattr(parcours, c))
+    if champs:
+        user.save(update_fields=champs)
+
+    user.marquer_connexion()
+    token, _ = Token.objects.get_or_create(user=user)
+    return Response({
+        'token': token.key,
+        'nouveau_compte': nouveau,
+        'user': UtilisateurDetailSerializer(user).data,
+    }, status=status.HTTP_201_CREATED if nouveau else status.HTTP_200_OK)
 
 
 # ──────────────────── VIEWSET KYC (carte étudiant) ────────────────────

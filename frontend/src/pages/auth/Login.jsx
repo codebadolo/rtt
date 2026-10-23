@@ -176,6 +176,13 @@ export default function Login() {
         </button>
       </form>
 
+      <Link
+        to="/connexion-telephone"
+        className="btn-secondary w-full mt-4 flex justify-center"
+      >
+        Étudiant ou vendeur : se connecter avec mon numéro
+      </Link>
+
       <p className="text-center text-sm text-gray-500 mt-5">
         Pas encore de compte ?{' '}
         <Link to="/inscription" className="text-orange-500 font-semibold hover:text-orange-600">

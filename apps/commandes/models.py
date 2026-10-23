@@ -308,6 +308,7 @@ class Commande(models.Model):
         """
         from apps.administration.models import Produit
 
+        ancien_statut = self.statut
         with transaction.atomic():
             lignes = list(self.lignes.select_related('produit'))
             for ligne in lignes:
@@ -329,7 +330,7 @@ class Commande(models.Model):
 
             HistoriqueCommande.objects.create(
                 commande=self,
-                ancien_statut=StatutCommande.EN_ATTENTE,
+                ancien_statut=ancien_statut,
                 nouveau_statut=StatutCommande.VALIDEE,
                 modifie_par=validateurs,
                 commentaire="Paiement validé"
@@ -532,8 +533,9 @@ class Commande(models.Model):
             commentaire=f"Annulé: {motif}"
         )
 
-        # Restaurer le stock si déjà réservé (commande validée avant annulation)
-        if ancien_statut != StatutCommande.EN_ATTENTE:
+        # Commande jamais payée : ni stock réservé, ni remboursement à prévoir
+        if ancien_statut not in (StatutCommande.BROUILLON, StatutCommande.EN_ATTENTE):
+            # Restaurer le stock réservé à la validation du paiement
             from apps.administration.models import Produit
             for ligne in self.lignes.select_related('produit'):
                 if ligne.produit.stock_limite:
@@ -541,8 +543,8 @@ class Commande(models.Model):
                         quantite_stock=models.F('quantite_stock') + ligne.quantite
                     )
 
-        if not Remboursement.objects.filter(commande=self).exists():
-            Remboursement.declencher(self, motif=motif, automatique=not force)
+            if not Remboursement.objects.filter(commande=self).exists():
+                Remboursement.declencher(self, motif=motif, automatique=not force)
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
