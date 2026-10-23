@@ -10,7 +10,9 @@ import json
 # ─────────────────── Statuts de Commande ───────────────────
 class StatutCommande(models.TextChoices):
     BROUILLON = 'BROUILLON', 'Brouillon'
-    EN_ATTENTE = 'EN_ATTENTE', 'En attente'
+    # Commande en préparation du paiement : enregistrée pour pouvoir être
+    # payée, mais NON confirmée tant que le paiement n'est pas validé côté serveur.
+    EN_ATTENTE = 'EN_ATTENTE', 'En attente de paiement'
     ACCEPTEE = 'ACCEPTEE', 'Acceptée par le vendeur'
     EN_PREPARATION = 'EN_PREPARATION', 'En préparation'
     PRETE = 'PRETE', 'Prête'
@@ -459,6 +461,36 @@ class Commande(models.Model):
 
         from apps.commandes.consumers import envoyer_mise_a_jour_commande
         envoyer_mise_a_jour_commande(self)
+
+    # Statuts atteints uniquement après confirmation du paiement côté serveur
+    STATUTS_CONFIRMES = (
+        StatutCommande.VALIDEE, StatutCommande.ACCEPTEE, StatutCommande.EN_PREPARATION,
+        StatutCommande.PRETE, StatutCommande.EN_LIVRAISON, StatutCommande.LIVREE,
+        StatutCommande.DISTRIBUEE,
+    )
+
+    @property
+    def paiement_confirme(self):
+        if self.statut in self.STATUTS_CONFIRMES:
+            return True
+        try:
+            return self.paiement_senfenico.statut == 'success'
+        except PaiementSenfenico.DoesNotExist:
+            return False
+
+    @property
+    def etape_commande(self):
+        """
+        PREPARATION_PAIEMENT → PAIEMENT_CONFIRME → COMMANDE_CONFIRMEE
+        (ou ANNULEE / REJETEE). Distinct de la vérification du téléphone.
+        """
+        if self.statut in (StatutCommande.ANNULEE, StatutCommande.REJETEE):
+            return self.statut
+        if self.statut in self.STATUTS_CONFIRMES:
+            return 'COMMANDE_CONFIRMEE'
+        if self.paiement_confirme:
+            return 'PAIEMENT_CONFIRME'
+        return 'PREPARATION_PAIEMENT'
 
     # Statuts après lesquels une préparation a déjà commencé — le vendeur a
     # engagé des ingrédients et du travail (§8). Annulation client bloquée.

@@ -420,7 +420,7 @@ class Command(BaseCommand):
                     'emplacement': emplacement,
                     'mode_livraison': 'LIVREUR',
                     'capacite_max_commandes': random.choice([15, 20, 30]),
-                    'est_valide': True,
+                    'statut_validation': 'VALIDE',
                     'valide_par': admin_univ,
                     'date_validation': timezone.now(),
                     'est_actif': True,

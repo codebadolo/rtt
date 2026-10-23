@@ -35,14 +35,14 @@ class Command(BaseCommand):
                 'nom_boutique': 'Boutique Test',
                 'description': 'Boutique de test générée automatiquement',
                 'categorie_principale': 'SANDWICH',
-                'est_valide': True,
+                'statut_validation': ProfilVendeur.StatutValidation.VALIDE,
                 'est_actif': True,
             }
         )
-        if not profil_vendeur.est_valide:
-            profil_vendeur.est_valide = True
+        if not profil_vendeur.boutique_active:
+            profil_vendeur.statut_validation = ProfilVendeur.StatutValidation.VALIDE
             profil_vendeur.est_actif = True
-            profil_vendeur.save(update_fields=['est_valide', 'est_actif'])
+            profil_vendeur.save(update_fields=['statut_validation', 'est_actif'])
 
         produits_data = [
             {

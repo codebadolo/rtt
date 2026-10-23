@@ -2,7 +2,8 @@ import re
 import requests as http_requests
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Utilisateur, OTPVerification, DossierKYC
+from .models import Utilisateur, OTPVerification, DossierKYC, ParcoursIdentification, normaliser_telephone
+from apps.administration.models import Universite
 import logging
 
 logger = logging.getLogger(__name__)
@@ -193,18 +194,22 @@ class UtilisateurDetailSerializer(serializers.ModelSerializer):
     """
     nom_complet = serializers.SerializerMethodField()
     peut_commander = serializers.SerializerMethodField()
+    infos_personnelles_renseignees = serializers.BooleanField(read_only=True)
+    profil_etudiant_actif = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Utilisateur
         fields = [
             'id', 'email', 'nom', 'prenom', 'nom_complet',
-            'telephone', 'role',
+            'telephone', 'telephone_verifie', 'role', 'universite',
             'est_actif', 'peut_commander',
+            'infos_personnelles_renseignees', 'profil_etudiant_actif',
+            'jour_naissance', 'mois_naissance',
             'date_naissance', 'adresse', 'photo_profil',
             'date_inscription', 'derniere_connexion'
         ]
         read_only_fields = [
-            'id', 'email', 'role',
+            'id', 'email', 'role', 'telephone_verifie',
             'date_inscription', 'derniere_connexion'
         ]
 
@@ -212,7 +217,21 @@ class UtilisateurDetailSerializer(serializers.ModelSerializer):
         return f"{obj.prenom} {obj.nom}"
 
     def get_peut_commander(self, obj):
-        return obj.est_etudiant and obj.est_actif
+        return obj.profil_etudiant_actif
+
+    def validate(self, data):
+        jour = data.get('jour_naissance', getattr(self.instance, 'jour_naissance', None))
+        mois = data.get('mois_naissance', getattr(self.instance, 'mois_naissance', None))
+        valider_jour_mois(jour, mois)
+        return data
+
+    def update(self, instance, validated_data):
+        # Un nouveau numéro doit être revérifié par OTP
+        nouveau = validated_data.get('telephone')
+        if nouveau is not None and nouveau != instance.telephone:
+            validated_data['telephone_verifie'] = False
+            validated_data['date_verification_telephone'] = None
+        return super().update(instance, validated_data)
 
 
 # ──────────────────── SERIALIZER CHANGEMENT MOT DE PASSE ────────────────────
@@ -348,6 +367,111 @@ class OTPVerifierSerializer(serializers.Serializer):
         if not OTPVerification.verifier(data['telephone'], data['code']):
             raise serializers.ValidationError({'detail': 'Code invalide ou expiré.'})
         return data
+
+
+# ──────────────────── PARCOURS D'IDENTIFICATION PROGRESSIF ────────────────────
+def valider_jour_mois(jour, mois):
+    """Date de naissance V1 : jour + mois uniquement (29/02 accepté)."""
+    if jour is None and mois is None:
+        return
+    if (jour is None) != (mois is None):
+        raise serializers.ValidationError({'detail': 'Le jour et le mois de naissance vont ensemble.'})
+    import calendar
+    if not 1 <= mois <= 12:
+        raise serializers.ValidationError({'mois_naissance': 'Mois invalide (1 à 12).'})
+    if not 1 <= jour <= calendar.monthrange(2000, mois)[1]:
+        raise serializers.ValidationError({'jour_naissance': 'Jour invalide pour ce mois.'})
+
+
+class ParcoursIdentificationSerializer(serializers.ModelSerializer):
+    """État du parcours : données saisies, niveaux validés / à compléter."""
+    donnees = serializers.SerializerMethodField()
+    telephone_verifie = serializers.BooleanField(read_only=True)
+    compte_rattache = serializers.SerializerMethodField()
+    etapes = serializers.SerializerMethodField()
+    etape_suivante = serializers.SerializerMethodField()
+    profil_complet = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ParcoursIdentification
+        fields = [
+            'token', 'type_parcours', 'universite', 'donnees',
+            'telephone_verifie', 'compte_rattache', 'profil_complet',
+            'etapes', 'etape_suivante',
+            'date_creation', 'date_modification',
+        ]
+
+    def get_donnees(self, obj):
+        src = obj._source()
+        return {
+            'nom': src.nom, 'prenom': src.prenom,
+            'jour_naissance': src.jour_naissance, 'mois_naissance': src.mois_naissance,
+            'telephone': obj.telephone or (obj.utilisateur.telephone if obj.utilisateur else ''),
+        }
+
+    def get_compte_rattache(self, obj):
+        return obj.utilisateur_id is not None
+
+    def get_etapes(self, obj):
+        return obj.etapes()
+
+    def get_etape_suivante(self, obj):
+        return obj.etape_suivante()
+
+    def get_profil_complet(self, obj):
+        return obj.etape_suivante() is None
+
+
+class ParcoursDemarrerSerializer(serializers.Serializer):
+    type_parcours = serializers.ChoiceField(
+        choices=ParcoursIdentification.Type.choices, default=ParcoursIdentification.Type.ETUDIANT,
+    )
+    universite = serializers.PrimaryKeyRelatedField(
+        queryset=Universite.objects.filter(est_actif=True),
+        required=False, allow_null=True,
+    )
+
+    def validate(self, data):
+        if data['type_parcours'] == ParcoursIdentification.Type.ETUDIANT and not data.get('universite'):
+            raise serializers.ValidationError({'universite': "Choisissez d'abord votre université."})
+        return data
+
+
+class ParcoursInfosSerializer(serializers.Serializer):
+    """Niveaux 1-2 (étudiant) / niveau 1 hors téléphone (vendeur). Tous les champs sont partiels."""
+    nom = serializers.CharField(max_length=100, required=False, allow_blank=False)
+    prenom = serializers.CharField(max_length=100, required=False, allow_blank=False)
+    jour_naissance = serializers.IntegerField(required=False, allow_null=True)
+    mois_naissance = serializers.IntegerField(required=False, allow_null=True)
+    universite = serializers.PrimaryKeyRelatedField(
+        queryset=Universite.objects.filter(est_actif=True),
+        required=False, allow_null=True,
+    )
+
+    def validate(self, data):
+        parcours = self.context['parcours']
+        src = parcours._source()
+        jour = data.get('jour_naissance', src.jour_naissance)
+        mois = data.get('mois_naissance', src.mois_naissance)
+        valider_jour_mois(jour, mois)
+        for champ in ('nom', 'prenom'):
+            if champ in data:
+                data[champ] = data[champ].strip()
+        return data
+
+
+class ParcoursTelephoneSerializer(serializers.Serializer):
+    telephone = serializers.CharField(max_length=25)
+
+    def validate_telephone(self, value):
+        telephone = normaliser_telephone(value)
+        if not telephone:
+            raise serializers.ValidationError('Numéro de téléphone invalide.')
+        return telephone
+
+
+class ParcoursOTPSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=6, min_length=4)
 
 
 # ──────────────────── SERIALIZER KYC (carte étudiant) ────────────────────

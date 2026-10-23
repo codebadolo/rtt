@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum
 from django.utils import timezone
@@ -17,7 +17,7 @@ from .serializers import (
     HoraireCommandeSerializer, DashboardStatsSerializer,
     ConfigurationSerializer, SettlementRecordSerializer, SettlementCreateSerializer,
     CreneauLivraisonSerializer, JournalAuditSerializer,
-    ProfilVendeurSerializer, ProfilVendeurAdminSerializer,
+    ProfilVendeurSerializer, ProfilVendeurAdminSerializer, BoutiquePubliqueSerializer,
     ProfilLivreurSerializer, ProfilLivreurAdminSerializer,
 )
 from apps.authentification.permissions import EstAdmin, EstChefSecteurOuAdmin
@@ -242,7 +242,7 @@ class ProduitViewSet(viewsets.ModelViewSet):
     queryset = Produit.objects.prefetch_related('variantes', 'options').all()
     permission_classes = [IsAuthenticated, PeutGererProduits]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['categorie', 'est_actif']
+    filterset_fields = ['categorie', 'est_actif', 'vendeur']
     search_fields = ['nom', 'description']
     ordering_fields = ['nom', 'prix_base', 'date_creation']
     
@@ -252,15 +252,39 @@ class ProduitViewSet(viewsets.ModelViewSet):
         return ProduitDetailSerializer
     
     def get_permissions(self):
+        # Consultation libre : l'étudiant découvre le catalogue avant d'avoir un compte
         if self.action in ['list', 'retrieve', 'par_categorie', 'populaires', 'recherche']:
-            self.permission_classes = [IsAuthenticated]
+            self.permission_classes = [AllowAny]
         else:
-            self.permission_classes = [EstAdmin]
+            self.permission_classes = [IsAuthenticated, PeutGererProduits]
         return [permission() for permission in self.permission_classes]
-    
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if getattr(user, 'est_admin', False):
+            return queryset
+        # Catalogue public : produits des boutiques validées et actives
+        # (+ catalogue historique non rattaché à un vendeur)
+        visible = Q(vendeur__isnull=True) | Q(
+            vendeur__statut_validation=ProfilVendeur.StatutValidation.VALIDE,
+            vendeur__est_actif=True,
+        )
+        profil = getattr(user, 'profil_vendeur', None) if user.is_authenticated else None
+        if profil:
+            # Le vendeur gère son catalogue avant même la validation (niveau 4)
+            if self.action not in ['list', 'retrieve', 'par_categorie', 'populaires', 'recherche']:
+                return queryset.filter(vendeur=profil)
+            visible |= Q(vendeur=profil)
+        return queryset.filter(visible)
+
     def perform_create(self, serializer):
-        """Ajoute l'utilisateur qui crée"""
-        serializer.save(cree_par=self.request.user)
+        """Ajoute l'utilisateur qui crée (et sa boutique s'il est vendeur)"""
+        user = self.request.user
+        if user.est_admin:
+            serializer.save(cree_par=user)
+        else:
+            serializer.save(cree_par=user, vendeur=user.profil_vendeur)
     
     @action(detail=False, methods=['get'], url_path='par-categorie')
     def par_categorie(self, request):
@@ -297,7 +321,7 @@ class ProduitViewSet(viewsets.ModelViewSet):
         result = []
         for item in produits_populaires:
             try:
-                produit = Produit.objects.get(id=item['produit_id'])
+                produit = self.get_queryset().get(id=item['produit_id'])
                 result.append({
                     'id': produit.id,
                     'nom': produit.nom,
@@ -318,12 +342,38 @@ class ProduitViewSet(viewsets.ModelViewSet):
         if len(query) < 2:
             return Response([])
         
-        produits = self.queryset.filter(
+        produits = self.get_queryset().filter(
             Q(nom__icontains=query) | Q(description__icontains=query)
         )[:20]
         
         serializer = ProduitListSerializer(produits, many=True)
         return Response(serializer.data)
+
+
+# ──────────────────── BOUTIQUES (consultation publique) ────────────────────
+class BoutiqueViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Parcours étudiant sans compte : université → vendeurs → produits.
+    Seules les boutiques validées par Ritôtô et actives sont visibles.
+    Filtre : ?universite=<id>
+    """
+    serializer_class = BoutiquePubliqueSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['universite', 'categorie_principale', 'emplacement']
+    search_fields = ['nom_boutique', 'description']
+
+    def get_queryset(self):
+        return ProfilVendeur.objects.filter(
+            statut_validation=ProfilVendeur.StatutValidation.VALIDE,
+            est_actif=True,
+        ).select_related('emplacement').order_by('nom_boutique')
+
+    @action(detail=True, methods=['get'], url_path='produits')
+    def produits(self, request, pk=None):
+        boutique = self.get_object()
+        qs = boutique.produits.filter(est_actif=True).order_by('categorie', 'nom')
+        return Response(ProduitListSerializer(qs, many=True, context={'request': request}).data)
 
 
 # ──────────────────── VIEWSET VARIANTE ────────────────────
@@ -808,7 +858,7 @@ def profil_vendeur_view(request):
         serializer.is_valid(raise_exception=True)
         # Vendeurs déjà connus du pilote : activation immédiate décidée par l'admin
         # via l'interface admin — l'auto-inscription reste toujours en attente (§3.2)
-        instance = serializer.save(utilisateur=request.user, est_valide=False)
+        instance = serializer.save(utilisateur=request.user)
         # Le rôle passe en VENDEUR_* pour activer le tableau de bord dédié
         if request.user.role == 'ETUDIANT':
             request.user.role = (
@@ -824,6 +874,28 @@ def profil_vendeur_view(request):
     serializer.is_valid(raise_exception=True)
     serializer.save()
     return Response(serializer.data)
+
+
+@drf_api_view(['POST'])
+def profil_vendeur_soumettre_view(request):
+    """
+    Niveau 5 du parcours vendeur : soumet la boutique à la vérification
+    Ritôtô (après une première inscription ou une demande de correction).
+    """
+    if not request.user.is_authenticated:
+        return Response({'error': 'Non authentifié'}, status=status.HTTP_401_UNAUTHORIZED)
+    profil = ProfilVendeur.objects.filter(utilisateur=request.user).first()
+    if not profil:
+        return Response({'error': 'Aucune boutique'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        profil.soumettre()
+    except ValueError as e:
+        return Response(
+            {'error': str(e), 'elements_manquants': profil.elements_manquants(),
+             'etapes': profil.etapes()},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return Response(ProfilVendeurSerializer(profil).data)
 
 
 # ──────────────────── PROFIL LIVREUR (self-service, §3.4) ────────────────────
@@ -844,7 +916,7 @@ def profil_livreur_view(request):
         return Response(ProfilLivreurSerializer(profil).data)
 
     # PATCH — le livreur ne peut modifier que ses zones, son statut en_service et ses documents KYC
-    champs_autorises = ('zones_livraison', 'en_service', 'photo_cnib', 'photo_visage')
+    champs_autorises = ('zones_livraison', 'en_service', 'photo_visage')
     data = {k: v for k, v in request.data.items() if k in champs_autorises}
     serializer = ProfilLivreurSerializer(profil, data=data, partial=True)
     serializer.is_valid(raise_exception=True)
@@ -859,13 +931,22 @@ class AdminVendeurViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ProfilVendeurAdminSerializer
     permission_classes = [IsAuthenticated, EstAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['est_valide', 'est_actif', 'universite', 'categorie_principale']
-    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
+    filterset_fields = ['statut_validation', 'est_valide', 'est_actif', 'universite', 'categorie_principale']
+    search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email', 'utilisateur__telephone']
 
     @action(detail=True, methods=['post'], url_path='valider')
     def valider(self, request, pk=None):
         profil = self.get_object()
         profil.valider(request.user)
+        return Response(ProfilVendeurAdminSerializer(profil).data)
+
+    @action(detail=True, methods=['post'], url_path='demander-correction')
+    def demander_correction(self, request, pk=None):
+        profil = self.get_object()
+        motif = request.data.get('motif', '') or request.data.get('motif_rejet', '')
+        if not motif:
+            return Response({'error': 'Le motif est requis'}, status=status.HTTP_400_BAD_REQUEST)
+        profil.demander_correction(request.user, motif)
         return Response(ProfilVendeurAdminSerializer(profil).data)
 
     @action(detail=True, methods=['post'], url_path='rejeter')

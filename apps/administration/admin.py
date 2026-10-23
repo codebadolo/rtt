@@ -426,7 +426,7 @@ class UniversiteAdmin(admin.ModelAdmin):
     actions = ['activer', 'desactiver']
 
     def nb_vendeurs(self, obj):
-        return obj.vendeurs.filter(est_valide=True).count()
+        return obj.vendeurs.filter(statut_validation='VALIDE').count()
     nb_vendeurs.short_description = 'Vendeurs validés'
 
     def nb_livreurs(self, obj):
@@ -445,19 +445,19 @@ class UniversiteAdmin(admin.ModelAdmin):
 # ──────────────────── ADMIN PROFIL VENDEUR ────────────────────
 @admin.register(ProfilVendeur)
 class ProfilVendeurAdmin(admin.ModelAdmin):
-    list_display = ['nom_boutique', 'utilisateur', 'universite', 'categorie_principale', 'mode_livraison', 'est_valide', 'est_actif']
-    list_filter = ['est_valide', 'est_actif', 'categorie_principale', 'mode_livraison', 'universite']
+    list_display = ['nom_boutique', 'utilisateur', 'universite', 'categorie_principale', 'mode_livraison', 'statut_validation', 'est_actif']
+    list_filter = ['statut_validation', 'est_actif', 'categorie_principale', 'mode_livraison', 'universite']
     search_fields = ['nom_boutique', 'utilisateur__nom', 'utilisateur__prenom', 'utilisateur__email']
     ordering = ['-date_creation']
-    readonly_fields = ['date_creation', 'date_modification', 'date_validation', 'valide_par']
+    readonly_fields = ['date_creation', 'date_modification', 'date_soumission', 'date_validation', 'valide_par', 'est_valide']
     actions = ['valider_vendeurs', 'suspendre_vendeurs']
 
     fieldsets = (
         ('Boutique', {
-            'fields': ('utilisateur', 'universite', 'nom_boutique', 'description', 'categorie_principale', 'emplacement', 'mode_livraison', 'capacite_max_commandes'),
+            'fields': ('utilisateur', 'universite', 'nom_boutique', 'description', 'categorie_principale', 'emplacement', 'photo_boutique', 'mode_livraison', 'capacite_max_commandes'),
         }),
-        ('KYC', {
-            'fields': ('photo_cnib', 'photo_visage'),
+        ('Photo du responsable', {
+            'fields': ('photo_visage',),
             'classes': ('collapse',),
         }),
         ('Vendeur extérieur', {
@@ -465,7 +465,7 @@ class ProfilVendeurAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
         ('Validation', {
-            'fields': ('est_valide', 'valide_par', 'date_validation', 'motif_rejet'),
+            'fields': ('statut_validation', 'est_valide', 'date_soumission', 'valide_par', 'date_validation', 'motif_rejet'),
         }),
         ('Métadonnées', {
             'fields': ('est_actif', 'date_creation', 'date_modification'),
@@ -504,8 +504,8 @@ class ProfilLivreurAdmin(admin.ModelAdmin):
             'fields': ('boutiques_attribuees', 'zones_livraison'),
             'description': 'Vide = livreur "volant", sans boutique fixe (§7)',
         }),
-        ('KYC', {
-            'fields': ('photo_cnib', 'photo_visage'),
+        ('Photo', {
+            'fields': ('photo_visage',),
         }),
         ('Validation', {
             'fields': ('est_valide', 'valide_par', 'date_validation', 'motif_rejet'),

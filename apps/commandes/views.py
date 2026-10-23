@@ -13,6 +13,7 @@ from .models import (
 )
 from .serializers import (
     CommandeListSerializer, CommandeDetailSerializer, CommandeCreateSerializer, HistoriqueCommandeSerializer,
+    RecapitulatifCommandeSerializer,
     PaiementSenfenicoSerializer, PlainteSerializer, PlainteAdminSerializer,
     RemboursementSerializer, NoteVendeurCreateSerializer, NoteLivreurCreateSerializer,
     WalletVendeurSerializer, TransactionWalletSerializer,
@@ -29,7 +30,7 @@ class CommandeViewSet(viewsets.ModelViewSet):
     API de gestion des commandes
     """
     queryset = Commande.objects.select_related(
-        'etudiant', 'salle', 'secteur'
+        'etudiant', 'salle', 'secteur', 'paiement_senfenico'
     ).prefetch_related('lignes').all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -69,7 +70,10 @@ class CommandeViewSet(viewsets.ModelViewSet):
                 return queryset.none()
             # Ancien mode (compat) : commandes de son secteur non rattachées à un vendeur
             legacy = Q(vendeur__isnull=True, secteur=profil.emplacement_id) if profil.emplacement_id else Q(pk__in=[])
-            return queryset.filter(Q(vendeur=profil) | legacy)
+            # Le vendeur ne voit une commande qu'une fois le paiement confirmé
+            return queryset.filter(Q(vendeur=profil) | legacy).exclude(
+                statut__in=[StatutCommande.BROUILLON, StatutCommande.EN_ATTENTE]
+            )
 
         if hasattr(user, 'est_livreur') and user.est_livreur:
             # Ancien mode (salle) conservé pour compat des commandes non rattachées à un vendeur
@@ -98,13 +102,29 @@ class CommandeViewSet(viewsets.ModelViewSet):
         return queryset.none()
 
     def get_permissions(self):
-        if self.action in ['valider', 'rejeter']:
+        if self.action == 'recapitulatif':
+            self.permission_classes = [AllowAny]
+        elif self.action in ['valider', 'rejeter']:
             self.permission_classes = [EstChefSecteurOuAdmin]
         elif self.action in ['destroy']:
             self.permission_classes = [EstAdmin]
         else:
             self.permission_classes = [IsAuthenticated]
         return [p() for p in self.permission_classes]
+
+    # ── Récapitulatif avant paiement (aucune écriture) ─────────────────
+    @action(detail=False, methods=['post'], url_path='recapitulatif')
+    def recapitulatif(self, request):
+        """
+        Calcule le récapitulatif du panier (lignes, frais, total) sans créer
+        de commande. Indique aussi si le profil permet de passer au paiement.
+        """
+        serializer = RecapitulatifCommandeSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.to_recapitulatif()
+        user = request.user
+        data['profil_etudiant_actif'] = bool(user.is_authenticated and user.profil_etudiant_actif)
+        return Response(data)
 
     @action(detail=True, methods=['post'], url_path='valider')
     def valider(self, request, pk=None):
@@ -137,7 +157,7 @@ class CommandeViewSet(viewsets.ModelViewSet):
         commande.marquer_prete(request.user)
         return Response({'message': 'Commande prête', 'statut': commande.statut})
 
-    # ── Vendeur : accepter la commande (§4.5 : EN_ATTENTE/VALIDEE → ACCEPTEE) ──
+    # ── Vendeur : accepter la commande (§4.5 : VALIDEE → ACCEPTEE, après paiement) ──
     @action(detail=True, methods=['post'], url_path='accepter-vendeur')
     def accepter_vendeur(self, request, pk=None):
         """
@@ -148,8 +168,8 @@ class CommandeViewSet(viewsets.ModelViewSet):
         user = request.user
         if commande.vendeur_id and (not hasattr(user, 'profil_vendeur') or commande.vendeur_id != user.profil_vendeur.id):
             return Response({'error': 'Cette commande ne concerne pas votre boutique'}, status=status.HTTP_403_FORBIDDEN)
-        if commande.statut not in (StatutCommande.EN_ATTENTE, StatutCommande.VALIDEE):
-            return Response({'error': 'Cette commande ne peut pas être acceptée dans son statut actuel'},
+        if commande.statut != StatutCommande.VALIDEE:
+            return Response({'error': 'Seules les commandes payées (VALIDEE) peuvent être acceptées'},
                             status=status.HTTP_400_BAD_REQUEST)
         commande.accepter_vendeur(user)
         return Response({

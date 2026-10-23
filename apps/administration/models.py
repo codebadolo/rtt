@@ -569,8 +569,18 @@ class SettlementRecord(models.Model):
 class ProfilVendeur(models.Model):
     """
     Profil boutique d'un vendeur (intérieur ou extérieur).
-    Créé lors de l'inscription, activé après validation admin.
+
+    Parcours progressif : responsable + OTP (compte) → boutique → catalogue
+    → soumission → vérification Ritôtô. La boutique n'est active (visible,
+    commandable) qu'au statut VALIDE.
     """
+
+    class StatutValidation(models.TextChoices):
+        BROUILLON = 'BROUILLON', 'Inscription en cours'
+        EN_ATTENTE = 'EN_ATTENTE_VALIDATION', 'En attente de validation'
+        CORRECTION = 'CORRECTION_DEMANDEE', 'Correction demandée'
+        VALIDE = 'VALIDE', 'Validé'
+        REFUSE = 'REFUSE', 'Refusé'
 
     MODE_LIVRAISON = [
         ('SOI_MEME', 'Livre soi-même'),
@@ -618,8 +628,7 @@ class ProfilVendeur(models.Model):
         default=20,
     )
 
-    # KYC
-    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/vendeurs/cnib/', null=True, blank=True)
+    photo_boutique = models.ImageField('Photo de la boutique', upload_to='boutiques/', null=True, blank=True)
     photo_visage = models.ImageField('Photo visage', upload_to='kyc/vendeurs/visage/', null=True, blank=True)
 
     # Vendeur extérieur uniquement
@@ -631,7 +640,15 @@ class ProfilVendeur(models.Model):
         help_text='Ex: {"lundi": {"ouverture": "08:00", "fermeture": "18:00"}}',
     )
 
-    # Validation
+    # Validation Ritôtô
+    statut_validation = models.CharField(
+        'Statut de validation',
+        max_length=25,
+        choices=StatutValidation.choices,
+        default=StatutValidation.BROUILLON,
+        db_index=True,
+    )
+    # Dérivé de statut_validation (conservé pour compatibilité)
     est_valide = models.BooleanField('Compte validé', default=False)
     valide_par = models.ForeignKey(
         'authentification.Utilisateur',
@@ -640,8 +657,9 @@ class ProfilVendeur(models.Model):
         blank=True,
         related_name='vendeurs_valides',
     )
+    date_soumission = models.DateTimeField('Date de soumission', null=True, blank=True)
     date_validation = models.DateTimeField('Date de validation', null=True, blank=True)
-    motif_rejet = models.TextField('Motif de rejet', null=True, blank=True)
+    motif_rejet = models.TextField('Motif (correction / refus)', null=True, blank=True)
 
     est_actif = models.BooleanField('Boutique active', default=True)
     date_creation = models.DateTimeField('Date création', auto_now_add=True)
@@ -655,21 +673,91 @@ class ProfilVendeur(models.Model):
     def __str__(self):
         return f"{self.nom_boutique} ({self.utilisateur.get_full_name()})"
 
-    def valider(self, admin):
-        self.est_valide = True
-        self.valide_par = admin
-        self.date_validation = timezone.now()
-        self.motif_rejet = None
-        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
-        JournalAudit.enregistrer(admin, 'VALIDATION_VENDEUR', self, f'Boutique "{self.nom_boutique}" validée')
+    def save(self, *args, **kwargs):
+        self.est_valide = self.statut_validation == self.StatutValidation.VALIDE
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'statut_validation' in update_fields:
+            kwargs['update_fields'] = set(update_fields) | {'est_valide'}
+        super().save(*args, **kwargs)
 
-    def rejeter(self, admin, motif):
-        self.est_valide = False
+    @property
+    def boutique_active(self):
+        """Boutique visible et pouvant recevoir des commandes."""
+        return self.statut_validation == self.StatutValidation.VALIDE and self.est_actif
+
+    @property
+    def boutique_renseignee(self):
+        return bool(
+            (self.nom_boutique or '').strip() and (self.description or '').strip()
+            and (self.emplacement_id or (self.adresse_commerce or '').strip())
+            and self.photo_boutique
+        )
+
+    @property
+    def catalogue_renseigne(self):
+        return self.produits.filter(est_actif=True).exists()
+
+    def etapes(self):
+        """Niveaux du parcours vendeur avec leur statut."""
+        u = self.utilisateur
+        S = self.StatutValidation
+
+        def st(ok):
+            return 'VALIDE' if ok else 'A_COMPLETER'
+
+        if self.statut_validation == S.VALIDE:
+            statut_verif = 'VALIDE'
+        elif self.statut_validation == S.BROUILLON:
+            statut_verif = 'A_COMPLETER'
+        else:
+            statut_verif = self.statut_validation
+        return [
+            {'niveau': 1, 'code': 'RESPONSABLE', 'libelle': 'Nom, prénom et téléphone',
+             'statut': st((u.nom or '').strip() and (u.prenom or '').strip() and u.telephone)},
+            {'niveau': 2, 'code': 'OTP', 'libelle': 'Vérification du téléphone par SMS',
+             'statut': st(u.telephone_verifie)},
+            {'niveau': 3, 'code': 'BOUTIQUE', 'libelle': 'Nom, catégorie, description, emplacement, photo',
+             'statut': st(self.boutique_renseignee)},
+            {'niveau': 4, 'code': 'CATALOGUE', 'libelle': 'Produits, prix, disponibilité, photos',
+             'statut': st(self.catalogue_renseigne)},
+            {'niveau': 5, 'code': 'VERIFICATION', 'libelle': 'Vérification par Ritôtô',
+             'statut': statut_verif},
+        ]
+
+    def elements_manquants(self):
+        """Niveaux 1 à 4 non complétés (empêchent la soumission)."""
+        return [e['code'] for e in self.etapes()[:4] if e['statut'] != 'VALIDE']
+
+    def soumettre(self):
+        S = self.StatutValidation
+        if self.statut_validation not in (S.BROUILLON, S.CORRECTION):
+            raise ValueError("Cette boutique n'est pas en cours d'inscription ou de correction.")
+        manquants = self.elements_manquants()
+        if manquants:
+            raise ValueError(f"Informations incomplètes : {', '.join(manquants)}")
+        self.statut_validation = S.EN_ATTENTE
+        self.date_soumission = timezone.now()
+        self.save(update_fields=['statut_validation', 'date_soumission'])
+        JournalAudit.enregistrer(self.utilisateur, 'SOUMISSION_VENDEUR', self, f'Boutique "{self.nom_boutique}" soumise')
+
+    def _decider(self, admin, statut, motif=None):
+        self.statut_validation = statut
         self.valide_par = admin
         self.date_validation = timezone.now()
         self.motif_rejet = motif
-        self.save(update_fields=['est_valide', 'valide_par', 'date_validation', 'motif_rejet'])
-        JournalAudit.enregistrer(admin, 'REJET_VENDEUR', self, f'Boutique "{self.nom_boutique}" rejetée : {motif}')
+        self.save(update_fields=['statut_validation', 'valide_par', 'date_validation', 'motif_rejet'])
+
+    def valider(self, admin):
+        self._decider(admin, self.StatutValidation.VALIDE)
+        JournalAudit.enregistrer(admin, 'VALIDATION_VENDEUR', self, f'Boutique "{self.nom_boutique}" validée')
+
+    def demander_correction(self, admin, motif):
+        self._decider(admin, self.StatutValidation.CORRECTION, motif)
+        JournalAudit.enregistrer(admin, 'CORRECTION_VENDEUR', self, f'Boutique "{self.nom_boutique}" à corriger : {motif}')
+
+    def rejeter(self, admin, motif):
+        self._decider(admin, self.StatutValidation.REFUSE, motif)
+        JournalAudit.enregistrer(admin, 'REJET_VENDEUR', self, f'Boutique "{self.nom_boutique}" refusée : {motif}')
 
     SEUIL_ALERTE_NOTE = 3.0
 
@@ -689,7 +777,7 @@ class ProfilVendeur(models.Model):
 class ProfilLivreur(models.Model):
     """
     Profil d'un livreur étudiant.
-    Actif uniquement après validation admin (photo CNIB + visage vérifiées).
+    Actif uniquement après validation admin.
     """
 
     utilisateur = models.OneToOneField(
@@ -707,8 +795,6 @@ class ProfilLivreur(models.Model):
         verbose_name='Université',
     )
 
-    # KYC obligatoire
-    photo_cnib = models.ImageField('Photo CNIB', upload_to='kyc/livreurs/cnib/', null=True, blank=True)
     photo_visage = models.ImageField('Photo visage', upload_to='kyc/livreurs/visage/', null=True, blank=True)
 
     # Zones de livraison choisies par le livreur

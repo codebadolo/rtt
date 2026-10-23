@@ -46,11 +46,17 @@ class LigneCommandeCreateSerializer(serializers.Serializer):
 
 
 class CommandeCreateSerializer(serializers.ModelSerializer):
+    """
+    Création de la commande au moment du paiement (« commande en préparation
+    du paiement », statut EN_ATTENTE). Elle n'est confirmée qu'à la
+    validation du paiement côté serveur (Commande.valider).
+    """
     lignes = LigneCommandeCreateSerializer(many=True, write_only=True)
     salle = serializers.PrimaryKeyRelatedField(queryset=Salle.objects.all())
     creneau = serializers.PrimaryKeyRelatedField(
         queryset=CreneauLivraison.objects.filter(est_actif=True), required=False, allow_null=True
     )
+    telephone_paiement = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
     class Meta:
         model = Commande
@@ -63,13 +69,38 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'numero_commande', 'statut', 'total_ht', 'total_ttc', 'frais_service']
 
+    # Le récapitulatif réutilise la validation sans exiger un profil complet
+    verifier_profil = True
+
+    def _verifier_profil_etudiant(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated or not user.est_etudiant:
+            return
+        manquants = []
+        if not user.infos_personnelles_renseignees:
+            manquants.append('INFORMATIONS_PERSONNELLES')
+        if not user.telephone_verifie:
+            manquants.append('TELEPHONE_NON_VERIFIE')
+        if manquants:
+            raise serializers.ValidationError({
+                'detail': 'Complétez votre profil et vérifiez votre téléphone avant de commander.',
+                'code': 'PROFIL_INCOMPLET',
+                'etapes_manquantes': manquants,
+            })
+
     def validate(self, data):
+        if self.verifier_profil:
+            self._verifier_profil_etudiant()
+
         config = Configuration.get_active()
         ouvert, message = config.commandes_sont_ouvertes()
         if not ouvert:
             raise serializers.ValidationError({'detail': message})
 
         lignes = data.get('lignes', [])
+        if not lignes:
+            raise serializers.ValidationError({'lignes': 'Le panier est vide.'})
         total_ht = sum(
             (l.get('prix_unitaire') or (l['variante'].prix if l.get('variante') else l['produit'].prix_base))
             * l['quantite']
@@ -77,6 +108,14 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         )
         if total_ht < 100:
             raise serializers.ValidationError({'detail': 'Le montant minimum de commande est de 100 FCFA.'})
+
+        # Une boutique n'est commandable qu'après validation Ritôtô
+        for l in lignes:
+            vendeur = l['produit'].vendeur
+            if vendeur and not vendeur.boutique_active:
+                raise serializers.ValidationError(
+                    {'detail': f'La boutique « {vendeur.nom_boutique} » ne peut pas recevoir de commandes.'}
+                )
 
         # Un panier, un seul vendeur (§4.1)
         vendeurs = {l['produit'].vendeur_id for l in lignes if l['produit'].vendeur_id}
@@ -86,6 +125,13 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
                            'Créez une commande séparée pour chaque vendeur.'}
             )
         data['_vendeur_id'] = vendeurs.pop() if vendeurs else None
+
+        if self.verifier_profil and not data.get('telephone_paiement'):
+            request = self.context.get('request')
+            telephone = getattr(getattr(request, 'user', None), 'telephone', '')
+            if not telephone:
+                raise serializers.ValidationError({'telephone_paiement': 'Numéro de paiement requis.'})
+            data['telephone_paiement'] = telephone
 
         return data
 
@@ -110,8 +156,56 @@ class CommandeCreateSerializer(serializers.ModelSerializer):
         return commande
 
 
+class RecapitulatifCommandeSerializer(CommandeCreateSerializer):
+    """
+    Récapitulatif du panier avant paiement : mêmes calculs que la création,
+    sans rien enregistrer. Le moyen de paiement n'est pas encore requis.
+    """
+    verifier_profil = False
+    methode_paiement = serializers.ChoiceField(choices=Commande.METHODE_PAIEMENT, required=False)
+
+    def to_recapitulatif(self):
+        from apps.administration.models import ProfilVendeur
+
+        data = self.validated_data
+        lignes = []
+        total_ht = 0
+        for l in data['lignes']:
+            sous_total = l['prix_unitaire'] * l['quantite']
+            total_ht += sous_total
+            lignes.append({
+                'produit': l['produit'].id,
+                'produit_nom': l['produit'].nom,
+                'variante': l['variante'].id if l.get('variante') else None,
+                'variante_nom': l['variante'].nom if l.get('variante') else None,
+                'options': [o.nom for o in l.get('options', [])],
+                'quantite': l['quantite'],
+                'prix_unitaire': l['prix_unitaire'],
+                'sous_total': sous_total,
+            })
+        frais_service, total_ttc = Configuration.get_active().calculer_frais(total_ht)
+        vendeur = ProfilVendeur.objects.filter(pk=data['_vendeur_id']).first() if data['_vendeur_id'] else None
+        salle = data['salle']
+        creneau = data.get('creneau')
+        return {
+            'commande_creee': False,
+            'message': "Récapitulatif : la commande sera confirmée uniquement après le paiement.",
+            'vendeur': {'id': vendeur.id, 'nom_boutique': vendeur.nom_boutique} if vendeur else None,
+            'salle': {'id': salle.id, 'nom': salle.nom, 'secteur': salle.secteur.nom},
+            'mode_reception': data.get('mode_reception', 'LIVRAISON'),
+            'creneau': {'id': creneau.id, 'label': creneau.label} if creneau else None,
+            'description_besoin': data.get('description_besoin'),
+            'lignes': lignes,
+            'total_ht': total_ht,
+            'frais_service': frais_service,
+            'total_ttc': total_ttc,
+        }
+
+
 class CommandeListSerializer(serializers.ModelSerializer):
     etudiant_nom = serializers.SerializerMethodField()
+    etape_commande = serializers.CharField(read_only=True)
+    paiement_confirme = serializers.BooleanField(read_only=True)
     etudiant_email = serializers.CharField(source='etudiant.email', read_only=True)
     salle_nom = serializers.CharField(source='salle.nom', read_only=True)
     secteur_nom = serializers.CharField(source='secteur.nom', read_only=True)
@@ -132,6 +226,7 @@ class CommandeListSerializer(serializers.ModelSerializer):
             'creneau', 'creneau_label', 'code_retrait',
             'methode_paiement', 'methode_paiement_display',
             'telephone_paiement', 'reference_paiement',
+            'etape_commande', 'paiement_confirme',
             'description_besoin',
             'date_creation', 'date_validation',
         ]
@@ -148,6 +243,8 @@ class PaiementSenfenicoInlineSerializer(serializers.ModelSerializer):
 
 class CommandeDetailSerializer(serializers.ModelSerializer):
     etudiant_nom = serializers.SerializerMethodField()
+    etape_commande = serializers.CharField(read_only=True)
+    paiement_confirme = serializers.BooleanField(read_only=True)
     etudiant_email = serializers.CharField(source='etudiant.email', read_only=True)
     salle_nom = serializers.CharField(source='salle.nom', read_only=True)
     secteur_nom = serializers.CharField(source='secteur.nom', read_only=True)
@@ -173,6 +270,7 @@ class CommandeDetailSerializer(serializers.ModelSerializer):
             'creneau', 'creneau_label', 'code_retrait',
             'methode_paiement', 'methode_paiement_display',
             'telephone_paiement', 'reference_paiement', 'capture_paiement',
+            'etape_commande', 'paiement_confirme',
             'description_besoin',
             'motif_rejet', 'date_validation',
             'lignes', 'paiement_senfenico',

@@ -27,7 +27,7 @@ class AuthentificationEmailMotDePasse(TokenAuthentication):
         token.user.derniere_connexion = timezone.now()
         token.user.save(update_fields=['derniere_connexion'])
         
-        logger.info(f"Authentification réussie: {token.user.email}")
+        logger.info(f"Authentification réussie: {token.user.email or token.user.telephone}")
         return (token.user, token)
 
 
