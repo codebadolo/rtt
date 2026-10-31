@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Building2, CheckCircle, Eye, EyeOff, Lock, Mail, MapPin, MessageCircle, Phone, ShieldCheck, ShoppingBag, Store, Truck, User, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Building2, CheckCircle, Eye, EyeOff, Lock, Mail, MapPin, MessageCircle, Phone, ShieldCheck, ShoppingBag, Store, User, Users } from 'lucide-react'
 import { forwardRef, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
@@ -14,13 +14,6 @@ const ROLE_OPTIONS = [
     desc: 'Choisissez votre campus et commandez — sans créer de compte à l\'avance',
     icon: Users,
     color: 'blue',
-  },
-  {
-    value: 'LIVREUR',
-    label: 'Livreur',
-    desc: 'Livrer les commandes sur le campus',
-    icon: Truck,
-    color: 'orange',
   },
   {
     value: 'VENDEUR_INTERIEUR',
@@ -47,7 +40,6 @@ const COLOR_CLASSES = {
 
 const ROLE_REDIRECTS = {
   ETUDIANT:          '/etudiant',
-  LIVREUR:           '/livreur',
   VENDEUR_INTERIEUR: '/vendeur',
   VENDEUR_EXTERIEUR: '/vendeur',
 }
@@ -387,7 +379,6 @@ export default function Register() {
                     <h1 className="text-xl font-extrabold text-gray-900">
                       {selectedRole === 'ETUDIANT' && 'Informations académiques'}
                       {(selectedRole === 'VENDEUR_INTERIEUR' || selectedRole === 'VENDEUR_EXTERIEUR') && 'Informations boutique'}
-                      {selectedRole === 'LIVREUR' && 'Informations livreur'}
                     </h1>
                     <p className="text-gray-400 text-xs mt-0.5">Dernière étape</p>
                   </div>
@@ -432,18 +423,6 @@ export default function Register() {
                     </>
                   )}
 
-                  {/* Livreur */}
-                  {selectedRole === 'LIVREUR' && (
-                    <>
-                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
-                        <p className="font-semibold mb-1">Validation requise</p>
-                        <p className="text-xs text-amber-600">Votre compte doit être validé par un administrateur universitaire.</p>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Vous pourrez compléter votre profil depuis votre tableau de bord après inscription.
-                      </p>
-                    </>
-                  )}
                 </div>
 
                 <button type="submit" disabled={isSubmitting}
