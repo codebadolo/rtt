@@ -5,6 +5,7 @@ Règle centrale vérifiée ici : l'OTP valide le téléphone, jamais la commande
 import io
 from datetime import timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -24,7 +25,7 @@ def image_test():
     return SimpleUploadedFile('boutique.png', buf.getvalue(), content_type='image/png')
 
 
-@override_settings(DEBUG=True)
+@override_settings(DEBUG=True, BBG_SMS_API_TOKEN='', BBG_SMS_SENDER_ID='')
 class BaseParcoursTest(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -264,3 +265,45 @@ class VerificationTelephoneCompatTest(BaseParcoursTest):
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(r.data['user']['id'], profil.utilisateur_id)
         self.assertEqual(r.data['user']['etat_parcours']['statut_boutique'], 'VALIDE')
+
+
+@override_settings(DEBUG=False, BBG_SMS_API_TOKEN='318|jeton-test', BBG_SMS_SENDER_ID='RITOTO')
+class EnvoiOTPBBGSMSTest(TestCase):
+    """Envoi réel de l'OTP via BBG SMS (requête HTTP simulée)."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def reponse(self, json, status_code=200):
+        return mock.Mock(status_code=status_code, ok=status_code < 400, json=lambda: json, text=str(json))
+
+    @mock.patch('apps.authentification.sms_bbg.requests.request')
+    def test_code_envoye_par_sms(self, requete):
+        requete.return_value = self.reponse({'status': 'success', 'data': {'uid': 'abc'}})
+        r = self.client.post('/api/auth/otp/envoyer/', {'telephone': '70 11 22 33'}, format='json')
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertTrue(r.data['envoye'])
+        self.assertNotIn('debug_code', r.data)
+
+        methode, url = requete.call_args.args
+        corps = requete.call_args.kwargs['json']
+        self.assertEqual((methode, url), ('POST', 'https://bbgsmsapp.betterbegoing.com/api/http/sms/send'))
+        self.assertEqual(corps['recipient'], '22670112233')
+        self.assertEqual(corps['sender_id'], 'RITOTO')
+        self.assertEqual(corps['type'], 'plain')
+        self.assertEqual(corps['api_token'], '318|jeton-test')
+        code = OTPVerification.objects.get(telephone='+22670112233').code
+        self.assertIn(code, corps['message'])
+
+    @mock.patch('apps.authentification.sms_bbg.requests.request')
+    def test_erreur_fournisseur_remontee(self, requete):
+        requete.return_value = self.reponse({'status': 'error', 'message': 'Sender ID non activé'})
+        r = self.client.post('/api/auth/otp/envoyer/', {'telephone': '70112233'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('SMS', str(r.data))
+
+    @override_settings(BBG_SMS_API_TOKEN='')
+    def test_sans_fournisseur_en_production(self):
+        r = self.client.post('/api/auth/otp/envoyer/', {'telephone': '70112233'}, format='json')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('Aucun fournisseur SMS', str(r.data))

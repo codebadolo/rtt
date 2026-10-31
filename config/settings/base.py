@@ -127,6 +127,13 @@ GOOGLE_OAUTH2_CLIENT_ID = os.getenv('GOOGLE_OAUTH2_CLIENT_ID', '')
 SENFENICO_API_KEY = os.getenv('SENFENICO_API_KEY', '')
 SENFENICO_WEBHOOK_SECRET = os.getenv('SENFENICO_WEBHOOK_SECRET', '')
 
+# ─── SMS (BBG SMS) ────────────────────────────────────────────────────────────
+
+BBG_SMS_API_TOKEN = os.getenv('BBG_SMS_API_TOKEN', '')
+BBG_SMS_SENDER_ID = os.getenv('BBG_SMS_SENDER_ID', '')
+BBG_SMS_BASE_URL = os.getenv('BBG_SMS_BASE_URL', 'https://bbgsmsapp.betterbegoing.com')
+BBG_SMS_TIMEOUT = int(os.getenv('BBG_SMS_TIMEOUT', 15))
+
 # ─── Frontend ─────────────────────────────────────────────────────────────────
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')

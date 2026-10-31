@@ -368,7 +368,7 @@ class OTPEnvoyerSerializer(serializers.Serializer):
         return telephone
 
     def save(self):
-        from .otp_sender import envoyer_code_otp, EnvoiOTPNonConfigure
+        from .otp_sender import envoyer_code_otp, EnvoiOTPErreur
 
         telephone = self.validated_data['telephone']
         autorise, message, _ = OTPVerification.peut_envoyer(telephone)
@@ -377,7 +377,7 @@ class OTPEnvoyerSerializer(serializers.Serializer):
         otp = OTPVerification.generer(telephone)
         try:
             resultat = envoyer_code_otp(telephone, otp.code)
-        except EnvoiOTPNonConfigure as e:
+        except EnvoiOTPErreur as e:
             raise serializers.ValidationError({'detail': str(e)})
         return {'telephone': telephone, **resultat}
 

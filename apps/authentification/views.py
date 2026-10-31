@@ -533,7 +533,7 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
 
     @action(detail=True, methods=['post'], url_path='telephone')
     def telephone(self, request, token=None):
-        from .otp_sender import envoyer_code_otp, EnvoiOTPNonConfigure
+        from .otp_sender import envoyer_code_otp, EnvoiOTPErreur
 
         parcours = self.get_object()
         serializer = ParcoursTelephoneSerializer(data=request.data)
@@ -548,7 +548,7 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
         otp = OTPVerification.generer(telephone)
         try:
             resultat = envoyer_code_otp(telephone, otp.code)
-        except EnvoiOTPNonConfigure as e:
+        except EnvoiOTPErreur as e:
             return Response({'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         parcours.telephone = telephone
