@@ -8,6 +8,7 @@ import AddToCartModal from '../../components/AddToCartModal'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import PublicLayout from '../../layouts/PublicLayout'
 import useCartStore from '../../stores/cartStore'
+import Photo from '../../components/Photo'
 
 /** Étape 3 du parcours étudiant : produits d'une boutique, ajout au panier. */
 export default function Boutique() {
@@ -48,6 +49,11 @@ export default function Boutique() {
           <ArrowLeft className="w-4 h-4" /> Toutes les boutiques
         </Link>
 
+        {boutique.photo_boutique && (
+          <Photo src={boutique.photo_boutique} alt={boutique.nom_boutique}
+            className="w-full aspect-video max-h-[28rem] rounded-2xl" />
+        )}
+
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4 items-center">
           {boutique.photo_boutique ? (
             <img src={boutique.photo_boutique} alt={boutique.nom_boutique} className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
@@ -80,9 +86,9 @@ export default function Boutique() {
               return (
                 <div key={p.id} className="card flex flex-col">
                   {image ? (
-                    <img src={image} alt={p.nom} className="w-full h-36 object-cover rounded-lg mb-3" />
+                    <Photo src={image} alt={p.nom} className="w-full aspect-[4/3] rounded-lg mb-3" />
                   ) : (
-                    <div className="w-full h-36 bg-gradient-to-br from-primary-50 to-orange-100 rounded-lg mb-3 flex items-center justify-center">
+                    <div className="w-full aspect-[4/3] bg-gradient-to-br from-primary-50 to-orange-100 rounded-lg mb-3 flex items-center justify-center">
                       <span className="text-4xl">🍽️</span>
                     </div>
                   )}

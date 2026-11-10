@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { productsApi } from '../api/products'
 import useCartStore from '../stores/cartStore'
 import Modal from './Modal'
+import Photo from './Photo'
 
 const prixOption = (o) => parseFloat(o.prix ?? o.prix_supplementaire ?? 0)
 
@@ -84,7 +85,7 @@ export default function AddToCartModal({ product, isOpen, onClose }) {
         </div>
       ) : (
         <div className="space-y-4">
-          {image && <img src={image} alt={product.nom} className="w-full h-48 object-cover rounded-lg" />}
+          {image && <Photo src={image} alt={product.nom} className="w-full aspect-[4/3] rounded-lg" />}
           {(detail?.description || product.description) && (
             <p className="text-sm text-gray-600">{detail?.description || product.description}</p>
           )}

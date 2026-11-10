@@ -8,6 +8,7 @@ import DashboardLayout from '../../layouts/DashboardLayout'
 import DataTable from '../../components/DataTable'
 import Modal from '../../components/Modal'
 import { profilsApi } from '../../api/orders'
+import Photo from '../../components/Photo'
 
 const FILTERS = [
   { value: 'EN_ATTENTE_VALIDATION', label: 'En attente de validation' },
@@ -81,7 +82,7 @@ function DetailModal({ vendeur, isOpen, onClose }) {
         )}
 
         {vendeur.photo_boutique && (
-          <img src={vendeur.photo_boutique} alt="Boutique" className="w-full h-40 object-cover rounded-xl border border-gray-200" />
+          <Photo src={vendeur.photo_boutique} alt="Boutique" className="w-full aspect-video rounded-xl border border-gray-200" />
         )}
 
         <div>

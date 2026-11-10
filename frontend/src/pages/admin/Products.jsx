@@ -133,7 +133,7 @@ function ProductForm({ product, onSubmit, onCancel, isLoading }) {
         <label className="label">Image du produit</label>
         {imagePreview ? (
           <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gray-200">
-            <img src={imagePreview} alt="Aperçu" className="w-full h-full object-cover" />
+            <img src={imagePreview} alt="Aperçu" className="w-full h-full object-contain" />
             <button
               type="button"
               onClick={removeImage}

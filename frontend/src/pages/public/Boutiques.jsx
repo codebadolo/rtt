@@ -6,6 +6,7 @@ import { boutiquesApi, universitesApi } from '../../api/auth'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import PublicLayout from '../../layouts/PublicLayout'
 import useParcoursStore from '../../stores/parcoursStore'
+import Photo from '../../components/Photo'
 
 /** Étape 2 du parcours étudiant : liste des vendeurs/boutiques du campus. */
 export default function Boutiques() {
@@ -70,9 +71,9 @@ export default function Boutiques() {
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
               >
                 {b.photo_boutique ? (
-                  <img src={b.photo_boutique} alt={b.nom_boutique} className="w-full h-32 object-cover" />
+                  <Photo src={b.photo_boutique} alt={b.nom_boutique} zoomable={false} className="w-full aspect-video" />
                 ) : (
-                  <div className="w-full h-32 bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center">
+                  <div className="w-full aspect-video bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center">
                     <Store className="w-10 h-10 text-orange-300" />
                   </div>
                 )}

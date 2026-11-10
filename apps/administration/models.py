@@ -2,6 +2,8 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 
+from .images import optimiser_image
+
 
 # ─────────────────── Université ───────────────────
 class Universite(models.Model):
@@ -236,6 +238,10 @@ class Produit(models.Model):
     
     def __str__(self):
         return f"{self.nom} - {self.prix_base} FCFA"
+
+    def save(self, *args, **kwargs):
+        optimiser_image(self.image)
+        super().save(*args, **kwargs)
     
     @property
     def en_stock(self):
@@ -674,6 +680,7 @@ class ProfilVendeur(models.Model):
         return f"{self.nom_boutique} ({self.utilisateur.get_full_name()})"
 
     def save(self, *args, **kwargs):
+        optimiser_image(self.photo_boutique)
         self.est_valide = self.statut_validation == self.StatutValidation.VALIDE
         update_fields = kwargs.get('update_fields')
         if update_fields is not None and 'statut_validation' in update_fields:
