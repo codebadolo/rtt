@@ -25,7 +25,7 @@ class ParcoursCommandeV1Tests(TestCase):
         self.salle = Salle.objects.create(nom='Amphi A', code='AMPHI-A', secteur=self.secteur)
 
         vendeur_user = Utilisateur.objects.create_user(
-            email='v@ex.com', nom='K', prenom='I', telephone='+22670000009', role='VENDEUR_INTERIEUR',
+            email='v@ex.com', nom='K', prenom='I', telephone='+22670000009', role='VENDEUR',
         )
         self.boutique = ProfilVendeur.objects.create(
             utilisateur=vendeur_user, nom_boutique='Chez Issa', emplacement=self.secteur,
@@ -102,7 +102,7 @@ class BoutiquesPubliquesTests(TestCase):
 
         def boutique(nom, statut, tel):
             user = Utilisateur.objects.create_user(
-                email=f'{nom}@ex.com', nom=nom, prenom=nom, telephone=tel, role='VENDEUR_INTERIEUR',
+                email=f'{nom}@ex.com', nom=nom, prenom=nom, telephone=tel, role='VENDEUR',
             )
             b = ProfilVendeur.objects.create(
                 utilisateur=user, nom_boutique=nom, emplacement=self.secteur,

@@ -267,7 +267,7 @@ export default function StudentDashboard() {
               {[
                 { label: 'Nom complet', value: user?.nom_complet },
                 { label: 'Email', value: user?.email },
-                { label: 'Rôle', value: 'Étudiant' },
+                { label: 'Rôle', value: 'Client' },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <span className="text-sm text-gray-500">{item.label}</span>

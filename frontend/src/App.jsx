@@ -69,7 +69,7 @@ import VendeurProfil from './pages/vendeur/Profil'
 import VendeurInscription from './pages/vendeur/Inscription'
 import VendeurProduits from './pages/vendeur/Produits'
 
-const ROLES_VENDEUR = ['VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR']
+const ROLES_VENDEUR = ['VENDEUR']
 
 // Une boutique n'est exploitable qu'après validation Ritôtô (dossier V1 §7) :
 // tant qu'elle ne l'est pas, le vendeur est ramené à son parcours d'inscription.
@@ -98,8 +98,7 @@ function RootRedirect() {
   const redirects = {
     ETUDIANT:           '/etudiant',
     LIVREUR:            '/livreur',
-    VENDEUR_INTERIEUR:  '/vendeur',
-    VENDEUR_EXTERIEUR:  '/vendeur',
+    VENDEUR:           '/vendeur',
     CHEF_SECTEUR:       '/chef',
     ADMIN_UNIVERSITAIRE:'/admin',
     ADMIN:              '/admin',
@@ -235,7 +234,7 @@ export default function App() {
       <Route
         path="/vendeur/*"
         element={
-          <ProtectedRoute allowedRoles={['VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR', 'ADMIN']}>
+          <ProtectedRoute allowedRoles={['VENDEUR', 'ADMIN']}>
             <BoutiqueValideeRequise>
             <Routes>
               <Route path="/" element={<VendeurDashboard />} />

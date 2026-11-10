@@ -180,7 +180,7 @@ export default function Login() {
         to="/connexion-telephone"
         className="btn-secondary w-full mt-4 flex justify-center"
       >
-        Étudiant ou vendeur : se connecter avec mon numéro
+        Client ou vendeur : se connecter avec mon numéro
       </Link>
 
       <p className="text-center text-sm text-gray-500 mt-5">

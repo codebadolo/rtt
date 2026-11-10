@@ -10,24 +10,17 @@ import useAuthStore from '../../stores/authStore'
 const ROLE_OPTIONS = [
   {
     value: 'ETUDIANT',
-    label: 'Client étudiant',
-    desc: 'Choisissez votre campus et commandez — sans créer de compte à l\'avance',
+    label: 'Client',
+    desc: 'Je veux commander des produits — choisissez votre campus, sans créer de compte à l\'avance',
     icon: Users,
     color: 'blue',
   },
   {
-    value: 'VENDEUR_INTERIEUR',
-    label: 'Vendeur intérieur',
-    desc: 'Inscription guidée, validée par l\'équipe Ritôtô',
+    value: 'VENDEUR',
+    label: 'Vendeur',
+    desc: 'Je veux vendre mes produits — inscription guidée, validée par l\'équipe Ritôtô',
     icon: Store,
     color: 'green',
-  },
-  {
-    value: 'VENDEUR_EXTERIEUR',
-    label: 'Vendeur extérieur',
-    desc: 'Inscription guidée, validée par l\'équipe Ritôtô',
-    icon: ShoppingBag,
-    color: 'purple',
   },
 ]
 
@@ -40,8 +33,7 @@ const COLOR_CLASSES = {
 
 const ROLE_REDIRECTS = {
   ETUDIANT:          '/etudiant',
-  VENDEUR_INTERIEUR: '/vendeur',
-  VENDEUR_EXTERIEUR: '/vendeur',
+  VENDEUR:           '/vendeur',
 }
 
 const NIVEAUX = ['Licence 1', 'Licence 2', 'Licence 3', 'Master 1', 'Master 2', 'Doctorat', 'BTS', 'DUT', 'Autre']
@@ -378,7 +370,7 @@ export default function Register() {
                   <div>
                     <h1 className="text-xl font-extrabold text-gray-900">
                       {selectedRole === 'ETUDIANT' && 'Informations académiques'}
-                      {(selectedRole === 'VENDEUR_INTERIEUR' || selectedRole === 'VENDEUR_EXTERIEUR') && 'Informations boutique'}
+                      {selectedRole === 'VENDEUR' && 'Informations boutique'}
                     </h1>
                     <p className="text-gray-400 text-xs mt-0.5">Dernière étape</p>
                   </div>
@@ -411,7 +403,7 @@ export default function Register() {
                   )}
 
                   {/* Vendeur */}
-                  {(selectedRole === 'VENDEUR_INTERIEUR' || selectedRole === 'VENDEUR_EXTERIEUR') && (
+                  {selectedRole === 'VENDEUR' && (
                     <>
                       <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                         <p className="font-semibold mb-1">Validation requise</p>

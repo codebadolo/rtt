@@ -26,7 +26,8 @@ const ROLE_STYLES = {
 }
 const ROLE_LABELS = {
   ADMIN: 'Administrateur',
-  ETUDIANT: 'Étudiant',
+  ETUDIANT: 'Client',
+  VENDEUR: 'Vendeur',
   CHEF_SECTEUR: 'Chef de Secteur',
   LIVREUR: 'Livreur',
 }
@@ -351,7 +352,7 @@ function AdminPanel({ user }) {
 
 /* ── Change role modal ── */
 const ROLE_OPTIONS = [
-  { value: 'ETUDIANT',     label: 'Étudiant' },
+  { value: 'ETUDIANT',     label: 'Client' },
   { value: 'CHEF_SECTEUR', label: 'Chef de secteur' },
   { value: 'LIVREUR',      label: 'Livreur' },
   { value: 'ADMIN',        label: 'Administrateur' },

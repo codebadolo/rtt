@@ -68,10 +68,10 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
     """
     
     class Role(models.TextChoices):
-        ETUDIANT = 'ETUDIANT', 'Étudiant (Client)'
+        # Deux types de comptes publics : Client (valeur historique ETUDIANT) et Vendeur
+        ETUDIANT = 'ETUDIANT', 'Client'
         LIVREUR = 'LIVREUR', 'Livreur'
-        VENDEUR_INTERIEUR = 'VENDEUR_INTERIEUR', 'Vendeur intérieur'
-        VENDEUR_EXTERIEUR = 'VENDEUR_EXTERIEUR', 'Vendeur extérieur'
+        VENDEUR = 'VENDEUR', 'Vendeur'
         CHEF_SECTEUR = 'CHEF_SECTEUR', 'Chef de Secteur'
         ADMIN_UNIVERSITAIRE = 'ADMIN_UNIVERSITAIRE', 'Administrateur universitaire'
         ADMIN = 'ADMIN', 'Super Administrateur'
@@ -218,15 +218,7 @@ class Utilisateur(AbstractBaseUser, PermissionsMixin):
 
     @property
     def est_vendeur(self):
-        return self.role in (self.Role.VENDEUR_INTERIEUR, self.Role.VENDEUR_EXTERIEUR)
-
-    @property
-    def est_vendeur_interieur(self):
-        return self.role == self.Role.VENDEUR_INTERIEUR
-
-    @property
-    def est_vendeur_exterieur(self):
-        return self.role == self.Role.VENDEUR_EXTERIEUR
+        return self.role == self.Role.VENDEUR
 
     def save(self, *args, **kwargs):
         if self.role in ('ADMIN', 'ADMIN_UNIVERSITAIRE', 'CHEF_SECTEUR'):

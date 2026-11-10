@@ -22,8 +22,7 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     const roleRedirects = {
       ETUDIANT:           '/etudiant',
       LIVREUR:            '/livreur',
-      VENDEUR_INTERIEUR:  '/vendeur',
-      VENDEUR_EXTERIEUR:  '/vendeur',
+      VENDEUR:           '/vendeur',
       CHEF_SECTEUR:       '/chef',
       ADMIN_UNIVERSITAIRE:'/admin',
       ADMIN:              '/admin',

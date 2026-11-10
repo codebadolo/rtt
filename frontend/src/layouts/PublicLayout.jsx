@@ -7,8 +7,7 @@ import useParcoursStore from '../stores/parcoursStore'
 const ESPACE_PAR_ROLE = {
   ETUDIANT: '/etudiant',
   LIVREUR: '/livreur',
-  VENDEUR_INTERIEUR: '/vendeur',
-  VENDEUR_EXTERIEUR: '/vendeur',
+  VENDEUR:          '/vendeur',
   CHEF_SECTEUR: '/chef',
   ADMIN_UNIVERSITAIRE: '/admin',
   ADMIN: '/admin',

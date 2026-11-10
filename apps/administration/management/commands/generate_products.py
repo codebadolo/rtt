@@ -25,7 +25,7 @@ class Command(BaseCommand):
                 nom='Test',
                 prenom='Vendeur',
                 telephone='70000000',
-                role=Utilisateur.Role.VENDEUR_INTERIEUR,
+                role=Utilisateur.Role.VENDEUR,
             )
 
         profil_vendeur, _ = ProfilVendeur.objects.get_or_create(

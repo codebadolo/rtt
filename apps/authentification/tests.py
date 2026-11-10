@@ -52,7 +52,7 @@ class BaseParcoursTest(TestCase):
 
     def boutique_validee(self):
         user = Utilisateur.objects.create_user(None, telephone='+22670000001', nom='V', prenom='W',
-                                               role='VENDEUR_INTERIEUR', telephone_verifie=True)
+                                               role='VENDEUR', telephone_verifie=True)
         profil = ProfilVendeur.objects.create(utilisateur=user, universite=self.univ, nom_boutique='Chez V',
                                               statut_validation=ProfilVendeur.StatutValidation.VALIDE)
         produit = Produit.objects.create(nom='Riz', prix_base=Decimal('500'), vendeur=profil)
@@ -167,7 +167,7 @@ class ParcoursVendeurTest(BaseParcoursTest):
         r = self.envoyer_et_verifier(token, '76554433')
         self.assertEqual(r.status_code, 200, r.data)
         vendeur = Utilisateur.objects.get(pk=r.data['user_id'])
-        self.assertEqual(vendeur.role, 'VENDEUR_INTERIEUR')
+        self.assertEqual(vendeur.role, 'VENDEUR')
         self.auth(vendeur)
 
         r = self.client.get('/api/profil/vendeur/')
@@ -222,7 +222,7 @@ class ParcoursVendeurTest(BaseParcoursTest):
     def test_vendeur_ne_modifie_que_son_catalogue(self):
         profil, produit = self.boutique_validee()
         autre = Utilisateur.objects.create_user(None, telephone='+22670000002', nom='O', prenom='P',
-                                                role='VENDEUR_INTERIEUR', telephone_verifie=True)
+                                                role='VENDEUR', telephone_verifie=True)
         ProfilVendeur.objects.create(utilisateur=autre, nom_boutique='Autre')
         self.auth(autre)
         r = self.client.patch(f'/api/produits/{produit.id}/', {'prix_base': '1'}, format='json')

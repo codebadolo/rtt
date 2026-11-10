@@ -38,7 +38,7 @@ const ROLE_STYLES = {
   LIVREUR:      'bg-green-100 text-green-700',
 }
 const ROLE_LABELS = {
-  ADMIN: 'Admin', ETUDIANT: 'Étudiant', CHEF_SECTEUR: 'Chef secteur', LIVREUR: 'Livreur',
+  ADMIN: 'Admin', ETUDIANT: 'Client', VENDEUR: 'Vendeur', CHEF_SECTEUR: 'Chef secteur', LIVREUR: 'Livreur',
 }
 function RolePill({ role }) {
   return (
@@ -103,7 +103,7 @@ function CreateUserModal({ isOpen, onClose }) {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Rôle *</label>
             <select className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100" {...register('role')}>
-              <option value="ETUDIANT">Étudiant</option>
+              <option value="ETUDIANT">Client</option>
               <option value="ADMIN">Admin</option>
               <option value="CHEF_SECTEUR">Chef de secteur</option>
               <option value="LIVREUR">Livreur</option>
@@ -157,7 +157,7 @@ function ChangeRoleModal({ user: targetUser, isOpen, onClose }) {
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-orange-400"
             {...register('role')}
           >
-            <option value="ETUDIANT">Étudiant</option>
+            <option value="ETUDIANT">Client</option>
             <option value="CHEF_SECTEUR">Chef de secteur</option>
             <option value="LIVREUR">Livreur</option>
             <option value="ADMIN">Administrateur</option>
@@ -177,7 +177,8 @@ function ChangeRoleModal({ user: targetUser, isOpen, onClose }) {
 /* ── Role filter pills ── */
 const ROLE_FILTERS = [
   { value: '', label: 'Tous' },
-  { value: 'ETUDIANT', label: 'Étudiants' },
+  { value: 'ETUDIANT', label: 'Clients' },
+  { value: 'VENDEUR', label: 'Vendeurs' },
   { value: 'ADMIN', label: 'Admins' },
   { value: 'CHEF_SECTEUR', label: 'Chefs secteur' },
   { value: 'LIVREUR', label: 'Livreurs' },
@@ -351,7 +352,7 @@ export default function AdminUsers() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <StatCard icon={Users}         label="Total"          value={stats.total}     color="bg-slate-700" />
-          <StatCard icon={GraduationCap} label="Étudiants"      value={stats.etudiants} color="bg-blue-500" />
+          <StatCard icon={GraduationCap} label="Clients"      value={stats.etudiants} color="bg-blue-500" />
           <StatCard icon={Truck}         label="Livreurs"        value={stats.livreurs}  color="bg-green-500" />
           <StatCard icon={ShieldCheck}   label="Chefs secteur"   value={stats.chefs}     color="bg-amber-500" />
           <StatCard icon={UserCheck}     label="Comptes actifs"  value={stats.actifs}    color="bg-emerald-500"

@@ -115,7 +115,7 @@ function ProfileSection({ user, onUpdate }) {
           <p className="text-sm text-gray-500 mb-1">Rôle</p>
           <div className="flex items-center gap-2">
             <span className="bg-primary-100 text-primary-700 text-sm font-medium px-3 py-1 rounded-full">
-              {user?.role === 'ETUDIANT' ? 'Étudiant' :
+              {user?.role === 'ETUDIANT' ? 'Client' :
                user?.role === 'ADMIN' ? 'Administrateur' :
                user?.role === 'CHEF_SECTEUR' ? 'Chef de Secteur' :
                user?.role === 'LIVREUR' ? 'Livreur' : user?.role}

@@ -602,13 +602,10 @@ class ParcoursIdentificationViewSet(viewsets.GenericViewSet):
         })
 
 
-ROLES_VENDEUR = (Utilisateur.Role.VENDEUR_INTERIEUR, Utilisateur.Role.VENDEUR_EXTERIEUR)
-
-
 def role_compatible(parcours, user):
     if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT:
         return user.role == Utilisateur.Role.ETUDIANT
-    return user.role in ROLES_VENDEUR or user.role == Utilisateur.Role.ETUDIANT
+    return user.role in (Utilisateur.Role.VENDEUR, Utilisateur.Role.ETUDIANT)
 
 
 def rattacher_compte(parcours, creer_profil_vendeur=True):
@@ -647,7 +644,7 @@ def rattacher_compte(parcours, creer_profil_vendeur=True):
             prenom=parcours.prenom,
             role=(Utilisateur.Role.ETUDIANT
                   if parcours.type_parcours == ParcoursIdentification.Type.ETUDIANT
-                  else Utilisateur.Role.VENDEUR_INTERIEUR),
+                  else Utilisateur.Role.VENDEUR),
             universite=parcours.universite,
         )
 
@@ -671,7 +668,7 @@ def rattacher_compte(parcours, creer_profil_vendeur=True):
         user.universite = parcours.universite
         champs.append('universite')
     if parcours.type_parcours == ParcoursIdentification.Type.VENDEUR and user.est_etudiant:
-        user.role = Utilisateur.Role.VENDEUR_INTERIEUR
+        user.role = Utilisateur.Role.VENDEUR
         champs.append('role')
     if champs:
         user.save(update_fields=champs)
@@ -719,7 +716,7 @@ def parcours_verifier_telephone_view(request):
     else:
         # Connexion par téléphone d'un vendeur déjà inscrit
         existant = Utilisateur.objects.filter(telephone=data['telephone'], telephone_verifie=True).first()
-        if existant and existant.role in ROLES_VENDEUR:
+        if existant and existant.role == Utilisateur.Role.VENDEUR:
             parcours.type_parcours = ParcoursIdentification.Type.VENDEUR
     parcours.save()
 

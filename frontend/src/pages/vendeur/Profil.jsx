@@ -11,6 +11,7 @@ import useAuthStore from '../../stores/authStore'
 import { profilsApi } from '../../api/orders'
 import { sectorsApi } from '../../api/sectors'
 import { universitesApi } from '../../api/auth'
+import Photo from '../../components/Photo'
 
 const CATEGORIES = [
   { value: 'SANDWICH', label: 'Sandwich' },
@@ -58,7 +59,8 @@ export default function VendeurProfil() {
   const user = useAuthStore((s) => s.user)
   const fetchProfile = useAuthStore((s) => s.fetchProfile)
   const queryClient = useQueryClient()
-  const estExterieur = user?.role === 'VENDEUR_EXTERIEUR'
+  // Un seul profil vendeur : la boutique est soit sur le campus, soit hors campus
+  const [horsCampus, setHorsCampus] = useState(null)
 
   const { data: profil, isLoading } = useQuery({
     queryKey: ['mon-profil-vendeur'],
@@ -69,6 +71,7 @@ export default function VendeurProfil() {
     queryKey: ['secteurs-actifs'],
     queryFn: () => sectorsApi.actifs(),
   })
+  const estExterieur = horsCampus ?? !!profil?.adresse_commerce
   const secteurs = Array.isArray(secteursData) ? secteursData : secteursData?.results ?? []
 
   const { data: universitesData } = useQuery({
@@ -167,6 +170,22 @@ export default function VendeurProfil() {
             </div>
           </div>
 
+          <div>
+            <label className="label">Où se trouve votre boutique ?</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ value: false, label: 'Sur le campus' }, { value: true, label: 'Hors campus' }].map((opt) => (
+                <button key={opt.label} type="button" onClick={() => setHorsCampus(opt.value)}
+                  className={`px-3 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                    estExterieur === opt.value
+                      ? 'border-primary-500 bg-primary-50 text-primary-700'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {!estExterieur && (
             <div>
               <label className="label">Emplacement sur le campus *</label>
@@ -183,7 +202,7 @@ export default function VendeurProfil() {
             <>
               <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                 <Building2 className="h-4 w-4 text-primary-500" />
-                <h2 className="font-semibold text-gray-800 text-sm">Commerce extérieur</h2>
+                <h2 className="font-semibold text-gray-800 text-sm">Commerce hors campus</h2>
               </div>
               <div>
                 <label className="label">Université desservie *</label>
@@ -202,7 +221,7 @@ export default function VendeurProfil() {
 
           <div>
             <label className="label flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Photo de la boutique</label>
-            {profil?.photo_boutique && <img src={profil.photo_boutique} alt="" className="w-full h-32 object-cover rounded-xl mb-2" />}
+            {profil?.photo_boutique && <Photo src={profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />}
             <input type="file" accept="image/*" className="input text-xs" {...register('photo_boutique')} />
           </div>
 

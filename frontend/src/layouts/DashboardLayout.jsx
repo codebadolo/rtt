@@ -43,15 +43,7 @@ const navByRole = {
     { to: '/etudiant/plaintes', label: 'Mes plaintes', icon: AlertTriangle },
     { to: '/etudiant/profil', label: 'Mon profil', icon: User },
   ],
-  VENDEUR_INTERIEUR: [
-    { to: '/vendeur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
-    { to: '/vendeur/commandes', label: 'Commandes', icon: ClipboardList },
-    { to: '/vendeur/produits', label: 'Mes produits', icon: Package },
-    { to: '/vendeur/wallet', label: 'Wallet', icon: CreditCard },
-    { to: '/vendeur/plaintes', label: 'Signaler un problème', icon: AlertTriangle },
-    { to: '/vendeur/profil', label: 'Ma boutique', icon: User },
-  ],
-  VENDEUR_EXTERIEUR: [
+  VENDEUR: [
     { to: '/vendeur', label: 'Tableau de bord', icon: LayoutDashboard, end: true },
     { to: '/vendeur/commandes', label: 'Commandes', icon: ClipboardList },
     { to: '/vendeur/produits', label: 'Mes produits', icon: Package },
@@ -106,10 +98,9 @@ const navByRole = {
 }
 
 const roleLabels = {
-  ETUDIANT:           'Étudiant',
+  ETUDIANT:           'Client',
   LIVREUR:            'Livreur',
-  VENDEUR_INTERIEUR:  'Vendeur intérieur',
-  VENDEUR_EXTERIEUR:  'Vendeur extérieur',
+  VENDEUR:            'Vendeur',
   CHEF_SECTEUR:       'Chef de Secteur',
   ADMIN_UNIVERSITAIRE:'Admin Universitaire',
   ADMIN:              'Super Administrateur',

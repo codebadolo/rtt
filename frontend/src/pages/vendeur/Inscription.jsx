@@ -14,10 +14,11 @@ import ParcoursSteps from '../../components/ParcoursSteps'
 import PublicLayout from '../../layouts/PublicLayout'
 import useAuthStore from '../../stores/authStore'
 import useParcoursStore from '../../stores/parcoursStore'
+import Photo from '../../components/Photo'
 
 const NIVEAUX = ['Responsable', 'Code SMS', 'Boutique', 'Catalogue', 'Validation Ritôtô']
 const [N_RESPONSABLE, N_OTP, N_BOUTIQUE, N_CATALOGUE, N_VALIDATION] = [0, 1, 2, 3, 4]
-const ROLES_AUTORISES = ['ETUDIANT', 'VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR']
+const ROLES_AUTORISES = ['ETUDIANT', 'VENDEUR']
 const CATEGORIES = [
   ['SANDWICH', 'Sandwich'], ['BOISSON', 'Boisson'], ['PATISSERIE', 'Pâtisserie'], ['SNACK', 'Snack'], ['AUTRE', 'Autre'],
 ]
@@ -329,7 +330,7 @@ function NiveauBoutique({ profil, retour, onSuite }) {
         <div>
           <label className="label" htmlFor="b-photo">Photo de la boutique</label>
           {profil?.photo_boutique && !f.photo_boutique && (
-            <img src={profil.photo_boutique} alt="" className="w-full h-32 object-cover rounded-xl mb-2" />
+            <Photo src={profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />
           )}
           <input id="b-photo" type="file" accept="image/*" className="input text-xs"
             onChange={(e) => setF((x) => ({ ...x, photo_boutique: e.target.files?.[0] ?? null }))} />

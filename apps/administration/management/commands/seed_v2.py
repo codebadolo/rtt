@@ -392,7 +392,7 @@ class Command(BaseCommand):
         for i in range(count):
             prenom = random.choice(PRENOMS_BF)
             nom = random.choice(NOMS_BF)
-            role = 'VENDEUR_INTERIEUR' if i < count - 1 else 'VENDEUR_EXTERIEUR'
+            role = 'VENDEUR'
             email = f'vendeur{i+1}.{univ.code.lower()}@ritoto.bf'
 
             user, created = Utilisateur.objects.get_or_create(
@@ -595,7 +595,7 @@ class Command(BaseCommand):
         self._log(f'  Salles       : {Salle.objects.count()}')
         self._log(f'  Produits     : {Produit.objects.count()}')
         self._log(f'  Utilisateurs : {Utilisateur.objects.count()}')
-        for role in ['ADMIN', 'ADMIN_UNIVERSITAIRE', 'VENDEUR_INTERIEUR', 'VENDEUR_EXTERIEUR', 'LIVREUR', 'ETUDIANT']:
+        for role in ['ADMIN', 'ADMIN_UNIVERSITAIRE', 'VENDEUR', 'LIVREUR', 'ETUDIANT']:
             count = Utilisateur.objects.filter(role=role).count()
             if count:
                 self._log(f'    └─ {role:<22} {count}')

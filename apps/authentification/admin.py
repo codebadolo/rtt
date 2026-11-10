@@ -31,7 +31,7 @@ class UtilisateurAdmin(BaseUserAdmin):
     def get_full_name(self, obj):
         colors = {
             'ETUDIANT': '#2196F3', 'LIVREUR': '#FF9800',
-            'VENDEUR_INTERIEUR': '#4CAF50', 'VENDEUR_EXTERIEUR': '#009688',
+            'VENDEUR': '#4CAF50',
             'CHEF_SECTEUR': '#9C27B0', 'ADMIN_UNIVERSITAIRE': '#F44336',
             'ADMIN': '#B71C1C',
         }

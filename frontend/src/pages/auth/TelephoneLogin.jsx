@@ -7,7 +7,7 @@ import { otpApi, parcoursApi } from '../../api/auth'
 import AuthLayout from '../../layouts/AuthLayout'
 import useAuthStore from '../../stores/authStore'
 
-const ESPACE = { ETUDIANT: '/etudiant', VENDEUR_INTERIEUR: '/vendeur', VENDEUR_EXTERIEUR: '/vendeur' }
+const ESPACE = { ETUDIANT: '/etudiant', VENDEUR: '/vendeur' }
 const erreur = (err, defaut) => {
   const d = err?.response?.data
   const v = d && (d.detail ?? d.error ?? d.code ?? d.telephone ?? Object.values(d)[0])

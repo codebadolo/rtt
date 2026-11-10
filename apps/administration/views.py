@@ -883,11 +883,9 @@ def profil_vendeur_view(request):
         # Vendeurs déjà connus du pilote : activation immédiate décidée par l'admin
         # via l'interface admin — l'auto-inscription reste toujours en attente (§3.2)
         instance = serializer.save(utilisateur=request.user)
-        # Le rôle passe en VENDEUR_* pour activer le tableau de bord dédié
+        # Le rôle passe en VENDEUR pour activer le tableau de bord dédié
         if request.user.role == 'ETUDIANT':
-            request.user.role = (
-                'VENDEUR_EXTERIEUR' if instance.adresse_commerce else 'VENDEUR_INTERIEUR'
-            )
+            request.user.role = 'VENDEUR'
             request.user.save(update_fields=['role'])
         return Response(ProfilVendeurSerializer(instance).data, status=status.HTTP_201_CREATED)
 
