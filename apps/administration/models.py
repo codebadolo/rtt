@@ -574,7 +574,7 @@ class SettlementRecord(models.Model):
 # ─────────────────── Profil Vendeur ───────────────────
 class ProfilVendeur(models.Model):
     """
-    Profil boutique d'un vendeur (intérieur ou extérieur).
+    Profil boutique d'un vendeur (sur le campus ou hors campus).
 
     Parcours progressif : responsable + OTP (compte) → boutique → catalogue
     → soumission → vérification Ritôtô. La boutique n'est active (visible,
@@ -637,7 +637,7 @@ class ProfilVendeur(models.Model):
     photo_boutique = models.ImageField('Photo de la boutique', upload_to='boutiques/', null=True, blank=True)
     photo_visage = models.ImageField('Photo visage', upload_to='kyc/vendeurs/visage/', null=True, blank=True)
 
-    # Vendeur extérieur uniquement
+    # Boutique hors campus uniquement
     adresse_commerce = models.TextField('Adresse du commerce', null=True, blank=True)
     horaires_disponibilite = models.JSONField(
         'Horaires de disponibilité',

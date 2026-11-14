@@ -11,7 +11,7 @@ import useAuthStore from '../../stores/authStore'
 import { profilsApi } from '../../api/orders'
 import { sectorsApi } from '../../api/sectors'
 import { universitesApi } from '../../api/auth'
-import Photo from '../../components/Photo'
+import Photo, { useApercu } from '../../components/Photo'
 
 const CATEGORIES = [
   { value: 'SANDWICH', label: 'Sandwich' },
@@ -81,9 +81,10 @@ export default function VendeurProfil() {
   })
   const universites = Array.isArray(universitesData) ? universitesData : universitesData?.results ?? []
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: profil ?? { mode_livraison: 'LIVREUR', capacite_max_commandes: 20 },
   })
+  const apercu = useApercu(watch('photo_boutique')?.[0])
 
   const createMut = useMutation({
     mutationFn: (data) => profilsApi.createVendeur(data),
@@ -221,7 +222,10 @@ export default function VendeurProfil() {
 
           <div>
             <label className="label flex items-center gap-1"><Upload className="h-3.5 w-3.5" /> Photo de la boutique</label>
-            {profil?.photo_boutique && <Photo src={profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />}
+            {(apercu || profil?.photo_boutique) && (
+              <Photo src={apercu ?? profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />
+            )}
+            {apercu && <p className="text-xs text-gray-500 mb-2">Aperçu : enregistrez pour publier cette photo.</p>}
             <input type="file" accept="image/*" className="input text-xs" {...register('photo_boutique')} />
           </div>
 

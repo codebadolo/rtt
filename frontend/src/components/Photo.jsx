@@ -1,6 +1,18 @@
 import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+/** URL d'aperçu d'un fichier choisi (avant envoi), libérée automatiquement. */
+export function useApercu(fichier) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    if (!(fichier instanceof File)) { setUrl(null); return undefined }
+    const objet = URL.createObjectURL(fichier)
+    setUrl(objet)
+    return () => URL.revokeObjectURL(objet)
+  }, [fichier])
+  return url
+}
+
 /**
  * Photo affichée en entier (object-contain), sans recadrage ni déformation.
  * L'espace libre autour est rempli par une version floutée de la même image.

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { productsApi } from '../api/products'
 import { profilsApi } from '../api/orders'
 import LoadingSpinner from './LoadingSpinner'
+import Photo, { useApercu } from './Photo'
 
 const CATEGORIES = [
   ['SANDWICH', 'Sandwich'], ['BOISSON', 'Boisson'], ['PATISSERIE', 'Pâtisserie'], ['SNACK', 'Snack'], ['AUTRE', 'Autre'],
@@ -122,6 +123,8 @@ export default function CatalogueEditor() {
 function FormulaireProduit({ initial, onValider, onAnnuler, enCours }) {
   const [p, setP] = useState(initial)
   const maj = (k) => (e) => setP((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }))
+  const apercu = useApercu(p.image)
+  const photo = apercu ?? p.image_url
   const valide = p.nom.trim() && Number(p.prix_base) > 0 && (!p.stock_limite || Number(p.quantite_stock) > 0)
 
   return (
@@ -148,6 +151,7 @@ function FormulaireProduit({ initial, onValider, onAnnuler, enCours }) {
       </div>
       <div>
         <label className="label">Photo</label>
+        {photo && <Photo src={photo} alt="Photo du produit" className="w-full sm:w-64 aspect-[4/3] rounded-lg mb-2" />}
         <input type="file" accept="image/*" className="input text-xs"
           onChange={(e) => setP((x) => ({ ...x, image: e.target.files?.[0] ?? null }))} />
       </div>

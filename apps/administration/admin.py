@@ -460,7 +460,7 @@ class ProfilVendeurAdmin(admin.ModelAdmin):
             'fields': ('photo_visage',),
             'classes': ('collapse',),
         }),
-        ('Vendeur extérieur', {
+        ('Commerce hors campus', {
             'fields': ('adresse_commerce', 'horaires_disponibilite'),
             'classes': ('collapse',),
         }),

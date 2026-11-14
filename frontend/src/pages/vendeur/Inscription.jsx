@@ -14,7 +14,7 @@ import ParcoursSteps from '../../components/ParcoursSteps'
 import PublicLayout from '../../layouts/PublicLayout'
 import useAuthStore from '../../stores/authStore'
 import useParcoursStore from '../../stores/parcoursStore'
-import Photo from '../../components/Photo'
+import Photo, { useApercu } from '../../components/Photo'
 
 const NIVEAUX = ['Responsable', 'Code SMS', 'Boutique', 'Catalogue', 'Validation Ritôtô']
 const [N_RESPONSABLE, N_OTP, N_BOUTIQUE, N_CATALOGUE, N_VALIDATION] = [0, 1, 2, 3, 4]
@@ -257,6 +257,7 @@ function NiveauBoutique({ profil, retour, onSuite }) {
     photo_boutique: null,
   })
   const maj = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const apercu = useApercu(f.photo_boutique)
 
   const { data: secteursData } = useQuery({ queryKey: ['secteurs-actifs'], queryFn: () => sectorsApi.actifs() })
   const secteurs = Array.isArray(secteursData) ? secteursData : secteursData?.results ?? []
@@ -329,9 +330,10 @@ function NiveauBoutique({ profil, retour, onSuite }) {
 
         <div>
           <label className="label" htmlFor="b-photo">Photo de la boutique</label>
-          {profil?.photo_boutique && !f.photo_boutique && (
-            <Photo src={profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />
+          {(apercu || profil?.photo_boutique) && (
+            <Photo src={apercu ?? profil.photo_boutique} alt="Photo de la boutique" className="w-full aspect-video rounded-xl mb-2" />
           )}
+          {apercu && <p className="text-xs text-gray-500 mb-2">Aperçu : la photo sera affichée ainsi aux clients.</p>}
           <input id="b-photo" type="file" accept="image/*" className="input text-xs"
             onChange={(e) => setF((x) => ({ ...x, photo_boutique: e.target.files?.[0] ?? null }))} />
         </div>
