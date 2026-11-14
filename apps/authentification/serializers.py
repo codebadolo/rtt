@@ -31,10 +31,9 @@ class InscriptionGoogleSerializer(serializers.Serializer):
     nom = serializers.CharField(required=True, max_length=100)
     prenom = serializers.CharField(required=True, max_length=100)
     telephone = serializers.CharField(required=True, max_length=20)
-    role = serializers.ChoiceField(
-        choices=['ETUDIANT', 'LIVREUR', 'CHEF_SECTEUR', 'ADMIN'],
-        required=True
-    )
+    # Inscription publique : compte Client uniquement. Les vendeurs passent par
+    # le parcours d'identification ; les autres rôles sont attribués par un admin.
+    role = serializers.ChoiceField(choices=['ETUDIANT'], default='ETUDIANT')
     def validate_token(self, value):
         """
         Valide l'access_token Google via l'endpoint userinfo.
@@ -100,7 +99,8 @@ class InscriptionSerializer(serializers.Serializer):
     nom = serializers.CharField(required=True, max_length=100)
     prenom = serializers.CharField(required=True, max_length=100)
     telephone = serializers.CharField(required=True, max_length=20)
-    role = serializers.ChoiceField(choices=['ETUDIANT', 'LIVREUR', 'CHEF_SECTEUR', 'ADMIN'], required=True)
+    # Inscription publique : compte Client uniquement (voir InscriptionGoogleSerializer)
+    role = serializers.ChoiceField(choices=['ETUDIANT'], default='ETUDIANT')
 
     def validate_email(self, value):
         value = value.lower().strip()
@@ -130,6 +130,11 @@ class InscriptionSerializer(serializers.Serializer):
 
 
 # ──────────────────── SERIALIZER CONNEXION ────────────────────
+class CreationUtilisateurAdminSerializer(InscriptionSerializer):
+    """Création d'un compte par un administrateur : tous les rôles internes."""
+    role = serializers.ChoiceField(choices=['ETUDIANT', 'LIVREUR', 'CHEF_SECTEUR', 'ADMIN'])
+
+
 class ConnexionSerializer(serializers.Serializer):
     """
     Serializer pour la connexion email/mot de passe

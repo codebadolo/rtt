@@ -13,7 +13,8 @@ from rest_framework.exceptions import PermissionDenied, NotFound
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Utilisateur, DossierKYC, OTPVerification, ParcoursIdentification
 from .serializers import (
-    InscriptionGoogleSerializer, InscriptionSerializer, ConnexionSerializer,
+    InscriptionGoogleSerializer, InscriptionSerializer, CreationUtilisateurAdminSerializer,
+    ConnexionSerializer,
     UtilisateurListSerializer, UtilisateurDetailSerializer,
     ChangementMotDePasseSerializer, DemandeReinitialisationSerializer,
     ReinitialisationMotDePasseSerializer,
@@ -249,7 +250,7 @@ class UtilisateurViewSet(viewsets.ModelViewSet):
         return [permission() for permission in self.permission_classes]
     
     def create(self, request, *args, **kwargs):
-        serializer = InscriptionSerializer(data=request.data)
+        serializer = CreationUtilisateurAdminSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(

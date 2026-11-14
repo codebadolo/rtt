@@ -307,3 +307,41 @@ class EnvoiOTPBBGSMSTest(TestCase):
         r = self.client.post('/api/auth/otp/envoyer/', {'telephone': '70112233'}, format='json')
         self.assertEqual(r.status_code, 400)
         self.assertIn('Aucun fournisseur SMS', str(r.data))
+
+
+class InscriptionPubliqueTest(TestCase):
+    """L'inscription ouverte à tous ne crée que des comptes Client."""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def inscrire(self, **extra):
+        return self.client.post('/api/auth/inscription/', {
+            'email': 'nouveau@ritoto.bf', 'password': 'Motdepasse1!', 'nom': 'N',
+            'prenom': 'P', 'telephone': '70000099', **extra,
+        }, format='json')
+
+    def test_roles_privilegies_refuses(self):
+        for role in ('ADMIN', 'CHEF_SECTEUR', 'LIVREUR', 'ADMIN_UNIVERSITAIRE', 'VENDEUR'):
+            r = self.inscrire(role=role)
+            self.assertEqual(r.status_code, 400, role)
+            self.assertIn('role', r.data)
+        self.assertFalse(Utilisateur.objects.filter(email='nouveau@ritoto.bf').exists())
+
+    def test_client_par_defaut(self):
+        r = self.inscrire()
+        self.assertEqual(r.status_code, 201, r.data)
+        user = Utilisateur.objects.get(email='nouveau@ritoto.bf')
+        self.assertEqual(user.role, 'ETUDIANT')
+        self.assertFalse(user.is_staff)
+
+    def test_admin_peut_toujours_creer_un_chef_de_secteur(self):
+        admin = Utilisateur.objects.create_superuser('root@ritoto.bf', 'Admin123!', nom='A', prenom='B')
+        token, _ = Token.objects.get_or_create(user=admin)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token.key}')
+        r = self.client.post('/api/utilisateurs/', {
+            'email': 'chef@ritoto.bf', 'password': 'Motdepasse1!', 'nom': 'C', 'prenom': 'S',
+            'telephone': '70000098', 'role': 'CHEF_SECTEUR',
+        }, format='json')
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(Utilisateur.objects.get(email='chef@ritoto.bf').role, 'CHEF_SECTEUR')
