@@ -8,7 +8,7 @@ Endpoints utilisés :
 
 Configuration (settings / .env) :
 - BBG_SMS_API_TOKEN  jeton API du compte BBG SMS
-- BBG_SMS_SENDER_ID  nom d'expéditeur (11 caractères max, activé sur BBG SMS)
+- BBG_SMS_SENDER_ID  nom d'expéditeur autorisé sur le compte BBG SMS (ex. « RITOTO BF »)
 - BBG_SMS_BASE_URL   optionnel, URL de base de l'API
 - BBG_SMS_TIMEOUT    optionnel, délai réseau en secondes
 """
@@ -75,12 +75,16 @@ def envoyer_sms(destinataires, message, heure_programmee=None):
     """
     Envoie un SMS texte. `destinataires` : un numéro ou une liste de numéros.
     `heure_programmee` : datetime optionnel pour un envoi différé.
-    Retourne le champ `data` de la réponse BBG (rapport d'envoi).
+    Retourne le champ `data` de la réponse BBG (rapport d'envoi), ou la liste
+    des rapports si plusieurs numéros sont donnés.
+
+    Un appel par numéro : BBG plante sur une liste séparée par des virgules
+    (« Call to undefined method libphonenumber\\PhoneNumber::getRegionCode() »).
     """
-    if isinstance(destinataires, str):
-        destinataires = [destinataires]
+    if not isinstance(destinataires, str):
+        return [envoyer_sms(t, message, heure_programmee) for t in destinataires]
     donnees = {
-        'recipient': ','.join(formater_destinataire(t) for t in destinataires),
+        'recipient': formater_destinataire(destinataires),
         'sender_id': settings.BBG_SMS_SENDER_ID,
         'type': 'plain',
         'message': message,
